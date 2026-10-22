@@ -1,0 +1,349 @@
+import React, { useState, useEffect } from 'react';
+import { api } from '../api/client';
+import { 
+  Users, UserPlus, ShieldAlert, ShieldCheck, CheckCircle2, 
+  XCircle, AlertTriangle, Activity, Lock, RefreshCw
+} from 'lucide-react';
+import { Badge } from '../components/Badge';
+import { Modal } from '../components/Modal';
+import { ConfirmDialog } from '../components/ConfirmDialog';
+
+export const AdminPage = () => {
+  const [stats, setStats] = useState(null);
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  // Status toggle state
+  const [statusUser, setStatusUser] = useState(null);
+  const [statusActionLoading, setStatusActionLoading] = useState(false);
+
+  // Create user modal
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [newUsername, setNewUsername] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [newFullName, setNewFullName] = useState('');
+  const [newEmail, setNewEmail] = useState('');
+  const [newRole, setNewRole] = useState('VIEWER');
+  const [createLoading, setCreateLoading] = useState(false);
+  const [createError, setCreateError] = useState('');
+
+  useEffect(() => {
+    fetchAdminData();
+  }, []);
+
+  const fetchAdminData = async () => {
+    try {
+      setLoading(true);
+      setError('');
+      const [statsRes, usersRes] = await Promise.all([
+        api.get('/admin/dashboard'),
+        api.get('/users'),
+      ]);
+      if (statsRes?.data) setStats(statsRes.data);
+      if (usersRes?.data) setUsers(usersRes.data);
+    } catch (err) {
+      setError(err.message || 'Failed to load administrative oversight data');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleToggleUserStatus = async () => {
+    if (!statusUser) return;
+    setStatusActionLoading(true);
+    try {
+      const newStatus = !statusUser.isActive;
+      await api.put(`/users/${statusUser.id}/status`, { isActive: newStatus });
+      setStatusUser(null);
+      fetchAdminData();
+    } catch (err) {
+      alert(err.message || 'Failed to update user status');
+    } finally {
+      setStatusActionLoading(false);
+    }
+  };
+
+  const handleCreateUser = async (e) => {
+    e.preventDefault();
+    setCreateLoading(true);
+    setCreateError('');
+    try {
+      await api.post('/users', {
+        username: newUsername.trim(),
+        password: newPassword,
+        fullName: newFullName.trim(),
+        email: newEmail.trim(),
+        role: newRole,
+      });
+      setIsCreateOpen(false);
+      setNewUsername('');
+      setNewPassword('');
+      setNewFullName('');
+      setNewEmail('');
+      setNewRole('VIEWER');
+      fetchAdminData();
+    } catch (err) {
+      setCreateError(err.message || 'Failed to create user');
+    } finally {
+      setCreateLoading(false);
+    }
+  };
+
+  const getRoleBadgeVariant = (role) => {
+    switch (role) {
+      case 'ADMIN': return 'error';
+      case 'OWNER': return 'success';
+      case 'VIEWER': return 'info';
+      default: return 'neutral';
+    }
+  };
+
+  return (
+    <div className="page-body">
+      <div className="flex-between" style={{ marginBottom: '1.75rem', flexWrap: 'wrap', gap: '1rem' }}>
+        <div>
+          <h1>Administrative Governance</h1>
+          <p>Account lifecycle management, user directory, and security oversight</p>
+        </div>
+        <div style={{ display: 'flex', gap: '0.75rem' }}>
+          <button className="btn btn-secondary" onClick={fetchAdminData}>
+            <RefreshCw size={15} />
+            <span>Refresh</span>
+          </button>
+          <button className="btn btn-primary" onClick={() => setIsCreateOpen(true)}>
+            <UserPlus size={16} />
+            <span>Provision User</span>
+          </button>
+        </div>
+      </div>
+
+      {error && (
+        <div className="alert alert-error">
+          <AlertTriangle size={18} />
+          <div>{error}</div>
+        </div>
+      )}
+
+      {/* Security Metrics Cards */}
+      {stats && (
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+            gap: '1rem',
+            marginBottom: '2rem',
+          }}
+        >
+          <div className="card">
+            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Total Registered Users</span>
+            <div style={{ fontSize: '1.75rem', fontWeight: 800, margin: '0.25rem 0' }}>{stats.totalUsers}</div>
+            <div style={{ fontSize: '0.75rem', color: 'var(--status-success)' }}>
+              {stats.activeUsers} Active / {stats.deactivatedUsers} Deactivated
+            </div>
+          </div>
+
+          <div className="card">
+            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Total Uploads</span>
+            <div style={{ fontSize: '1.75rem', fontWeight: 800, margin: '0.25rem 0' }}>{stats.totalUploads}</div>
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Private files encrypted</div>
+          </div>
+
+          <div className="card">
+            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Total Downloads</span>
+            <div style={{ fontSize: '1.75rem', fontWeight: 800, margin: '0.25rem 0' }}>{stats.totalDownloads}</div>
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Authorized retrievals</div>
+          </div>
+
+          <div className="card">
+            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Access Denied Events</span>
+            <div style={{ fontSize: '1.75rem', fontWeight: 800, margin: '0.25rem 0', color: stats.totalAccessDenied > 0 ? 'var(--status-error)' : 'inherit' }}>
+              {stats.totalAccessDenied}
+            </div>
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Blocked unauthorized attempts</div>
+          </div>
+
+          <div className="card">
+            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Failed Logins</span>
+            <div style={{ fontSize: '1.75rem', fontWeight: 800, margin: '0.25rem 0', color: stats.totalFailedLogins > 0 ? 'var(--status-warning)' : 'inherit' }}>
+              {stats.totalFailedLogins}
+            </div>
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Rate-limited failures</div>
+          </div>
+
+          <div className="card">
+            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Permission Changes</span>
+            <div style={{ fontSize: '1.75rem', fontWeight: 800, margin: '0.25rem 0' }}>{stats.totalPermissionChanges}</div>
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Grants, edits & revocations</div>
+          </div>
+        </div>
+      )}
+
+      {/* Users Management Table */}
+      <div className="card" style={{ marginBottom: '2rem' }}>
+        <div className="flex-between" style={{ marginBottom: '1.25rem' }}>
+          <div>
+            <h3>User Directory & Account Status</h3>
+            <p style={{ fontSize: '0.82rem' }}>Deactivating an account instantly cuts off session and document access</p>
+          </div>
+        </div>
+
+        {loading ? (
+          <div style={{ padding: '2rem', textAlign: 'center' }}>Loading user registry...</div>
+        ) : (
+          <div className="table-responsive">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>User</th>
+                  <th>Email</th>
+                  <th>Role</th>
+                  <th>Status</th>
+                  <th>Created</th>
+                  <th style={{ textAlign: 'right' }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {users.map((u) => (
+                  <tr key={u.id}>
+                    <td>
+                      <div style={{ fontWeight: 600 }}>{u.fullName}</div>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>@{u.username}</div>
+                    </td>
+                    <td style={{ fontSize: '0.85rem' }}>{u.email}</td>
+                    <td>
+                      <Badge variant={getRoleBadgeVariant(u.role)}>{u.role}</Badge>
+                    </td>
+                    <td>
+                      {u.isActive ? (
+                        <Badge variant="success">
+                          <CheckCircle2 size={12} />
+                          <span>Active</span>
+                        </Badge>
+                      ) : (
+                        <Badge variant="error">
+                          <XCircle size={12} />
+                          <span>Deactivated</span>
+                        </Badge>
+                      )}
+                    </td>
+                    <td style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                      {new Date(u.createdAt).toLocaleDateString()}
+                    </td>
+                    <td style={{ textAlign: 'right' }}>
+                      <button
+                        className={`btn btn-sm ${u.isActive ? 'btn-outline' : 'btn-primary'}`}
+                        style={{ fontSize: '0.75rem', padding: '0.25rem 0.6rem' }}
+                        onClick={() => setStatusUser(u)}
+                      >
+                        {u.isActive ? 'Deactivate' : 'Activate'}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Provision User Modal */}
+      <Modal isOpen={isCreateOpen} onClose={() => setIsCreateOpen(false)} title="Provision New User Account">
+        <form onSubmit={handleCreateUser}>
+          {createError && (
+            <div className="alert alert-error">
+              <div>{createError}</div>
+            </div>
+          )}
+
+          <div className="form-group">
+            <label className="form-label">Full Name</label>
+            <input
+              type="text"
+              className="form-input"
+              placeholder="e.g. David Miller"
+              value={newFullName}
+              onChange={(e) => setNewFullName(e.target.value)}
+              required
+            />
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">Username</label>
+            <input
+              type="text"
+              className="form-input"
+              placeholder="e.g. dmiller"
+              value={newUsername}
+              onChange={(e) => setNewUsername(e.target.value)}
+              required
+            />
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">Email Address</label>
+            <input
+              type="email"
+              className="form-input"
+              placeholder="e.g. dmiller@trustvault.local"
+              value={newEmail}
+              onChange={(e) => setNewEmail(e.target.value)}
+              required
+            />
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">Initial Password</label>
+            <input
+              type="password"
+              className="form-input"
+              placeholder="Min 8 characters"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              required
+              minLength={8}
+            />
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">Role</label>
+            <select
+              className="form-select"
+              value={newRole}
+              onChange={(e) => setNewRole(e.target.value)}
+            >
+              <option value="VIEWER">VIEWER (Read & download explicitly shared files only)</option>
+              <option value="OWNER">OWNER (Upload, manage, and share documents)</option>
+              <option value="ADMIN">ADMIN (System administration & audit oversight)</option>
+            </select>
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1.5rem' }}>
+            <button type="button" className="btn btn-secondary" onClick={() => setIsCreateOpen(false)}>
+              Cancel
+            </button>
+            <button type="submit" className="btn btn-primary" disabled={createLoading}>
+              {createLoading ? 'Provisioning...' : 'Provision User'}
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Confirm Status Toggle Dialog */}
+      <ConfirmDialog
+        isOpen={!!statusUser}
+        onClose={() => setStatusUser(null)}
+        onConfirm={handleToggleUserStatus}
+        title={statusUser?.isActive ? 'Deactivate User Account' : 'Activate User Account'}
+        message={
+          statusUser?.isActive
+            ? `Are you sure you want to deactivate ${statusUser?.fullName} (@${statusUser?.username})? They will be immediately blocked from making protected requests and accessing documents.`
+            : `Are you sure you want to activate ${statusUser?.fullName} (@${statusUser?.username})? They will regain normal access according to their role.`
+        }
+        confirmText={statusUser?.isActive ? 'Deactivate Account' : 'Activate Account'}
+        danger={statusUser?.isActive}
+        loading={statusActionLoading}
+      />
+    </div>
+  );
+};

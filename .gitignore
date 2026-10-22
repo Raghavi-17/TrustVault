@@ -1,0 +1,26 @@
+# Target and build directories
+backend/target/
+frontend/dist/
+frontend/node_modules/
+
+# IDE and OS files
+.idea/
+*.iml
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Storage and uploads (private document storage)
+backend/storage/
+backend/uploads/
+uploads/
+storage/
+
+# Environment and secrets
+.env
+.env.local
+*.log
+*.sqlite
+
+# Database local runtime volumes
+.postgres-data/
