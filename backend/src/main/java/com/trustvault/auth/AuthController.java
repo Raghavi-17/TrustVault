@@ -7,7 +7,10 @@ import com.trustvault.common.ApiResponse;
 import com.trustvault.common.BadRequestException;
 import com.trustvault.common.RateLimitExceededException;
 import com.trustvault.user.User;
+import com.trustvault.user.UserDto;
 import com.trustvault.user.UserRepository;
+import com.trustvault.user.UserService;
+import com.trustvault.user.UserStatus;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
@@ -40,16 +43,31 @@ public class AuthController {
     private final RateLimiterService rateLimiterService;
     private final AuditService auditService;
     private final UserRepository userRepository;
+    private final UserService userService;
 
     public AuthController(
             AuthenticationManager authenticationManager,
             RateLimiterService rateLimiterService,
             AuditService auditService,
-            UserRepository userRepository) {
+            UserRepository userRepository,
+            UserService userService) {
         this.authenticationManager = authenticationManager;
         this.rateLimiterService = rateLimiterService;
         this.auditService = auditService;
         this.userRepository = userRepository;
+        this.userService = userService;
+    }
+
+    @PostMapping("/register")
+    @Operation(summary = "Register a new user account (pending admin approval)")
+    public ResponseEntity<ApiResponse<UserDto>> register(
+            @Valid @RequestBody RegisterRequest request,
+            HttpServletRequest httpRequest) {
+        String clientIp = SecurityUtils.getClientIp(httpRequest);
+        String userAgent = httpRequest.getHeader("User-Agent");
+        UserDto registered = userService.registerUser(request, clientIp, userAgent);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.ok("Registration submitted successfully. Your account is pending administrator approval.", registered));
     }
 
     @PostMapping("/login")
@@ -129,20 +147,37 @@ public class AuthController {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(ApiResponse.ok("Invalid username or password", null));
         } catch (DisabledException ex) {
+            String msg = "Account is not active. Please contact an administrator.";
+            String auditMsg = "Login attempt on inactive account: " + request.username();
+            java.util.Optional<User> userOpt = userRepository.findByUsername(request.username())
+                    .or(() -> userRepository.findByEmail(request.username()));
+            if (userOpt.isPresent()) {
+                UserStatus status = userOpt.get().getStatus();
+                if (status == UserStatus.PENDING) {
+                    msg = "Your registration request is pending administrator approval.";
+                    auditMsg = "Login attempt on pending registration: " + request.username();
+                } else if (status == UserStatus.REJECTED) {
+                    msg = "Your account registration has been rejected. Please contact an administrator.";
+                    auditMsg = "Login attempt on rejected registration: " + request.username();
+                } else if (status == UserStatus.DEACTIVATED) {
+                    msg = "Your account has been deactivated. Please contact an administrator.";
+                    auditMsg = "Login attempt on deactivated account: " + request.username();
+                }
+            }
             auditService.recordEvent(
-                    null,
+                    userOpt.map(User::getId).orElse(null),
                     request.username(),
                     AuditEventType.LOGIN_FAILURE,
                     "USER",
-                    null,
+                    userOpt.map(User::getId).orElse(null),
                     AuditOutcome.DENIED,
                     clientIp,
                     userAgent,
                     null,
-                    "Login attempt on deactivated account: " + request.username()
+                    auditMsg
             );
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                    .body(ApiResponse.ok("Account is deactivated. Please contact an administrator.", null));
+                    .body(ApiResponse.ok(msg, null));
         }
     }
 

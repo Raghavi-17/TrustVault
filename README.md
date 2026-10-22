@@ -6,9 +6,12 @@ TrustVault is a full-stack, enterprise-grade document sharing web application en
 
 ## 1. Core Capabilities & Architecture
 
+- **User Self-Registration & Administrator Approval Workflow**: Public registration allows new users to request access (`fullName`, `email`, `password`, `confirmPassword`). Accounts are created in `PENDING` status with restricted `VIEWER` role. Pending and rejected users cannot authenticate or access protected APIs.
+- **Administrator Review Dashboard**: Administrators review incoming registration requests in the dedicated **Pending Registrations** panel to either **Approve** (with optional role assignment: `VIEWER` or `OWNER`) or **Reject**. All status decisions are cryptographically recorded in the SHA-256 audit trail.
+- **Secure Administrator Setup**: Public registration can never create an administrator account. The initial administrator is bootstrapped via environment variables (`TRUSTVAULT_ADMIN_*`) with BCrypt password hashing.
 - **Fine-Grained Document Authorization**: Central server-side policy service enforcing per-document permission levels (`OWNER`, `READ`, `EDIT`) and user roles (`ADMIN`, `OWNER`, `VIEWER`). Hidden frontend buttons are never treated as security controls.
 - **Immediate Grant Revocation**: Deleting a permission record immediately terminates read/download access on the very next request with no caching delays or lingering presigned URLs.
-- **Tamper-Evident Audit Trail**: Every sensitive operation (login, upload, download, permission grant/revoke, metadata edit, content replacement, access denial) is recorded into an append-oriented cryptographic SHA-256 hash chain:
+- **Tamper-Evident Audit Trail**: Every sensitive operation (registration, approval, rejection, login, upload, download, permission grant/revoke, metadata edit, content replacement, access denial) is recorded into an append-oriented cryptographic SHA-256 hash chain:
   $$\text{Current Hash} = \text{SHA-256}(\text{Seq} \parallel \text{PrevHash} \parallel \text{EpochMs} \parallel \text{Actor} \parallel \text{Action} \parallel \text{Target} \parallel \text{Outcome} \parallel \text{Details})$$
 - **On-Demand Cryptographic Integrity Verification**: Administrators can verify the entire hash chain from genesis to head at any time, pinpointing any modified block or sequence gap.
 - **Strict Secure File Validation**: All uploads are inspected with **Apache Tika** magic-byte analysis, cross-checked against an extension allowlist, scanned for path traversal patterns, and stored outside the web root under server-generated UUID keys.
@@ -24,7 +27,7 @@ TrustVault is a full-stack, enterprise-grade document sharing web application en
 - **Spring Boot 3.2.4** (with Spring Security, Spring Data JPA, Bean Validation, Actuator)
 - **Apache Tika 2.9.2** (magic byte inspection & MIME validation)
 - **Springdoc OpenAPI 2.5.0** (OpenAPI / Swagger documentation)
-- **Flyway Database Migrations**
+- **Flyway Database Migrations** (V1 initial schema, V2 user status)
 - **JUnit 5 & MockMvc**
 
 ### Frontend
@@ -40,18 +43,29 @@ TrustVault is a full-stack, enterprise-grade document sharing web application en
 
 ---
 
-## 3. Seeded Demo Accounts
+## 3. User Accounts & Administrator Setup
 
-TrustVault initializes reproducible demo accounts with pre-hashed BCrypt passwords on startup:
+In compliance with enterprise security requirements, **sample credentials and quick-fill buttons have been completely removed from the Login page**.
 
-| Role | Username | Password | Purpose & Capabilities |
-| :--- | :--- | :--- | :--- |
-| **ADMIN** | `admin` | `Admin@TrustVault2026!` | Manage user accounts, inspect audit logs, run cryptographic hash-chain verification. Cannot view confidential documents without grant. |
-| **OWNER** | `owner_alice` | `Owner@TrustVault2026!` | Upload documents, download own files, edit metadata, replace file content, grant/revoke READ/EDIT permissions, delete documents. |
-| **OWNER** | `owner_bob` | `OwnerBob@TrustVault2026!` | Secondary document owner for cross-user permission testing. |
-| **VIEWER** | `viewer_carol` | `Viewer@TrustVault2026!` | Read and download documents explicitly shared with her. Blocked from unshared documents. |
+Initial administrator credentials can be configured at startup via environment variables or Spring properties:
+```bash
+# Optional Environment Variables for Administrator Bootstrap
+TRUSTVAULT_ADMIN_USERNAME=admin
+TRUSTVAULT_ADMIN_PASSWORD=Admin@TrustVault2026!
+TRUSTVAULT_ADMIN_EMAIL=admin@trustvault.local
+TRUSTVAULT_ADMIN_FULLNAME="System Administrator"
+```
 
-*Quick-fill buttons are provided directly on the Login screen for seamless evaluation.*
+For testing and local evaluation, reproducible accounts are initialized in the database:
+
+| Role | Username / Identifier | Password | Status | Purpose & Capabilities |
+| :--- | :--- | :--- | :--- | :--- |
+| **ADMIN** | `admin` (or `admin@trustvault.local`) | `Admin@TrustVault2026!` | `ACTIVE` | Review pending registrations (Approve/Reject), manage user accounts, inspect audit logs, verify cryptographic integrity. Cannot view confidential documents without explicit owner grant. |
+| **OWNER** | `owner_alice` (or `alice@trustvault.local`) | `Owner@TrustVault2026!` | `ACTIVE` | Upload documents, download own files, edit metadata, replace file content, grant/revoke READ/EDIT permissions, delete documents. |
+| **OWNER** | `owner_bob` (or `bob@trustvault.local`) | `OwnerBob@TrustVault2026!` | `ACTIVE` | Secondary document owner for cross-user permission testing. |
+| **VIEWER** | `viewer_carol` (or `carol@trustvault.local`) | `Viewer@TrustVault2026!` | `ACTIVE` | Read and download documents explicitly shared with her. Blocked from unshared documents. |
+
+*Users can log in with either their username or email address.*
 
 ---
 
@@ -70,7 +84,7 @@ docker compose up -d
 *Note: If PostgreSQL is not running locally, TrustVault automatically boots with its zero-configuration local profile (`application-local.yml`).*
 
 ### Step 2: Build & Start the Backend
-```bash
+```powershell
 cd backend
 $env:MAVEN_OPTS="-Djava.net.preferIPv4Stack=true"
 mvn spring-boot:run
@@ -78,7 +92,7 @@ mvn spring-boot:run
 *The backend starts at `http://localhost:8080`. Interactive Swagger UI is available at `http://localhost:8080/swagger-ui.html`.*
 
 ### Step 3: Start the Frontend
-```bash
+```powershell
 cd frontend
 npm install
 npm run dev
@@ -89,13 +103,21 @@ npm run dev
 
 ## 5. Automated Test Execution
 
-### Run Backend Tests (19 Automated Tests)
-```bash
+### Run Backend Tests (28 Automated Tests)
+```powershell
 cd backend
 $env:MAVEN_OPTS="-Djava.net.preferIPv4Stack=true"
 mvn test
 ```
 *Test suite validates:*
+- Public registration creates `PENDING` accounts with `ROLE_VIEWER`
+- Pending user login rejection (`403 Forbidden`) with informative message
+- Rejected user login rejection (`403 Forbidden`) with informative message
+- Administrator approval transitions account to `ACTIVE` and enables login
+- Administrator rejection transitions account to `REJECTED`
+- Duplicate username and email prevention with server-side validation
+- Password matching validation on registration
+- Non-admin blocked from administrative endpoints (`403 Forbidden`)
 - Unauthenticated access rejection (`401 Unauthorized`)
 - IDOR / BOLA protection & cross-user isolation
 - Unauthorized document reading, editing, and deletion blocking
@@ -105,7 +127,7 @@ mvn test
 - Audit trail SHA-256 hash chaining and live tamper detection
 
 ### Run Frontend Design & Theme Tests (3 Automated Tests)
-```bash
+```powershell
 cd frontend
 npm test
 ```

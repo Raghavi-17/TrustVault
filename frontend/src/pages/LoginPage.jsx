@@ -1,40 +1,36 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { useNavigate } from 'react-router-dom';
-import { ShieldCheck, Lock, User, AlertCircle, Sparkles } from 'lucide-react';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
+import { ShieldCheck, Lock, User, AlertCircle, Info, UserPlus } from 'lucide-react';
 import { ThemeToggle } from '../components/ThemeToggle';
 
 export const LoginPage = () => {
   const { login } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
+  const [error, setError] = useState(location.state?.error || '');
+  const [infoMessage] = useState(location.state?.message || '');
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!username || !password) {
-      setError('Please provide both username and password');
+    if (!username.trim() || !password) {
+      setError('Please provide both username/email and password');
       return;
     }
     setError('');
     setLoading(true);
     try {
-      await login(username, password);
+      await login(username.trim(), password);
       navigate('/dashboard');
     } catch (err) {
       setError(err.message || 'Invalid username or password');
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleQuickFill = (u, p) => {
-    setUsername(u);
-    setPassword(p);
-    setError('');
   };
 
   return (
@@ -79,6 +75,27 @@ export const LoginPage = () => {
         </div>
 
         <div className="card" style={{ padding: '2rem' }}>
+          {infoMessage && (
+            <div
+              className="alert"
+              style={{
+                backgroundColor: 'rgba(56, 102, 65, 0.1)',
+                color: 'var(--brand-primary)',
+                border: '1px solid var(--brand-primary)',
+                marginBottom: '1.25rem',
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: '0.5rem',
+                fontSize: '0.875rem',
+                borderRadius: 'var(--radius-sm)',
+                padding: '0.75rem',
+              }}
+            >
+              <Info size={18} style={{ flexShrink: 0, marginTop: '2px' }} />
+              <div>{infoMessage}</div>
+            </div>
+          )}
+
           {error && (
             <div className="alert alert-error">
               <AlertCircle size={18} style={{ flexShrink: 0, marginTop: '2px' }} />
@@ -89,7 +106,7 @@ export const LoginPage = () => {
           <form onSubmit={handleSubmit}>
             <div className="form-group">
               <label className="form-label" htmlFor="username">
-                Username
+                Username or Email
               </label>
               <div style={{ position: 'relative' }}>
                 <input
@@ -97,7 +114,7 @@ export const LoginPage = () => {
                   type="text"
                   className="form-input"
                   style={{ paddingLeft: '2.5rem' }}
-                  placeholder="Enter your username"
+                  placeholder="Enter your username or email"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   disabled={loading}
@@ -162,45 +179,27 @@ export const LoginPage = () => {
               marginTop: '1.75rem',
               paddingTop: '1.25rem',
               borderTop: '1px solid var(--border-color)',
+              textAlign: 'center',
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.75rem' }}>
-              <Sparkles size={14} style={{ color: 'var(--brand-primary)' }} />
-              <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
-                Demo Accounts (Click to quick-fill)
-              </span>
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
-              <button
-                type="button"
-                className="btn btn-outline btn-sm"
-                onClick={() => handleQuickFill('admin', 'Admin@TrustVault2026!')}
-              >
-                Admin
-              </button>
-              <button
-                type="button"
-                className="btn btn-outline btn-sm"
-                onClick={() => handleQuickFill('owner_alice', 'Owner@TrustVault2026!')}
-              >
-                Owner (Alice)
-              </button>
-              <button
-                type="button"
-                className="btn btn-outline btn-sm"
-                onClick={() => handleQuickFill('owner_bob', 'OwnerBob@TrustVault2026!')}
-              >
-                Owner (Bob)
-              </button>
-              <button
-                type="button"
-                className="btn btn-outline btn-sm"
-                onClick={() => handleQuickFill('viewer_carol', 'Viewer@TrustVault2026!')}
-              >
-                Viewer (Carol)
-              </button>
-            </div>
+            <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', marginBottom: '0.75rem' }}>
+              Need an account to access confidential documents?
+            </p>
+            <Link
+              to="/register"
+              className="btn btn-outline"
+              style={{
+                width: '100%',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '0.5rem',
+                textDecoration: 'none',
+              }}
+            >
+              <UserPlus size={16} />
+              <span>Request Account Registration</span>
+            </Link>
           </div>
         </div>
       </div>

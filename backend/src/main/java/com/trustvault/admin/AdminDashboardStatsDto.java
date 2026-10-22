@@ -9,6 +9,7 @@ public record AdminDashboardStatsDto(
     long totalUsers,
     long activeUsers,
     long deactivatedUsers,
+    long pendingRegistrations,
     long totalDocuments,
     long totalUploads,
     long totalDownloads,

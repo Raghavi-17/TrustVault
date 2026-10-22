@@ -29,6 +29,10 @@ public class User {
     @Column(name = "role", length = 20, nullable = false)
     private Role role;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", length = 20, nullable = false)
+    private UserStatus status = UserStatus.ACTIVE;
+
     @Column(name = "is_active", nullable = false)
     private boolean isActive = true;
 
@@ -46,16 +50,23 @@ public class User {
 
     public User() {
         this.id = UUID.randomUUID().toString();
+        this.status = UserStatus.ACTIVE;
+        this.isActive = true;
     }
 
     public User(String username, String passwordHash, String fullName, String email, Role role) {
+        this(username, passwordHash, fullName, email, role, UserStatus.ACTIVE);
+    }
+
+    public User(String username, String passwordHash, String fullName, String email, Role role, UserStatus status) {
         this.id = UUID.randomUUID().toString();
         this.username = username;
         this.passwordHash = passwordHash;
         this.fullName = fullName;
         this.email = email;
         this.role = role;
-        this.isActive = true;
+        this.status = status != null ? status : UserStatus.ACTIVE;
+        this.isActive = (this.status == UserStatus.ACTIVE);
         this.failedLoginAttempts = 0;
         this.createdAt = Instant.now();
         this.updatedAt = Instant.now();
@@ -125,12 +136,26 @@ public class User {
         this.role = role;
     }
 
+    public UserStatus getStatus() {
+        return status;
+    }
+
+    public void setStatus(UserStatus status) {
+        this.status = status != null ? status : UserStatus.ACTIVE;
+        this.isActive = (this.status == UserStatus.ACTIVE);
+    }
+
     public boolean isActive() {
-        return isActive;
+        return isActive && (status == UserStatus.ACTIVE);
     }
 
     public void setActive(boolean active) {
-        isActive = active;
+        this.isActive = active;
+        if (active && this.status != UserStatus.ACTIVE) {
+            this.status = UserStatus.ACTIVE;
+        } else if (!active && this.status == UserStatus.ACTIVE) {
+            this.status = UserStatus.DEACTIVATED;
+        }
     }
 
     public int getFailedLoginAttempts() {

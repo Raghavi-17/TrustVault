@@ -111,6 +111,16 @@ This document defines the formal threat model, asset taxonomy, trust boundaries,
 - **Mitigation**: `DocumentAuthorizationService.checkActiveUser` queries `users.is_active` on every protected request. If `is_active == false`, an `AccountDeactivatedException` is thrown, returning HTTP 403 and terminating access immediately.
 - **Verification**: Verified in `DocumentSecurityAndAuthorizationTest.testDeactivatedUserBlockedImmediately`.
 
+### 4.9 Unauthorized Account Creation & Public Registration Abuse
+- **Scenario**: Attacker attempts to register arbitrary accounts, assign themselves `ROLE_ADMIN`, or immediately access confidential vaults via self-service signup.
+- **Mitigation**:
+  - All public self-registrations (`POST /api/auth/register`) default strictly to `ROLE_VIEWER` and `status = PENDING` (`isActive = false`).
+  - Spring Security prevents `PENDING` and `REJECTED` users from authenticating or accessing protected APIs.
+  - Server-side unique constraints prevent duplicate email or username squatting.
+  - Initial administrators can ONLY be provisioned through secure environment variables (`TRUSTVAULT_ADMIN_*`) or trusted bootstrap.
+  - Approvals and rejections can only be executed by authenticated administrators via server-side role check (`@PreAuthorize("hasRole('ADMIN')")`), with all actions logged into the cryptographic hash trail (`REGISTRATION_REQUEST`, `REGISTRATION_APPROVE`, `REGISTRATION_REJECT`).
+- **Verification**: Verified in `RegistrationAndApprovalWorkflowTest.testRegistrationCreatesPendingAccount`, `testPendingUserCannotLogin`, `testAdminApprovalAllowsLogin`, and `testAdminRejection`.
+
 ---
 
 ## 5. RESIDUAL RISKS

@@ -79,6 +79,34 @@ This file documents genuine AI interactions, architectural decisions, authorizat
 - **Verification:**
   Executed `& "C:\Users\ragha\.maven\apache-maven-3.9.9\bin\mvn.cmd" test`: 19/19 backend tests passed.
 
+### Entry 6 — 2026-10-22: User Registration & Admin Approval Workflow Implementation
+- **Prompt Used:**
+  "Update Existing TrustVault Project — Registration with Admin Approval. Create a complete, functional registration page. New registrations must require administrator approval before users can log in. Pending users must not be allowed to log in or access protected APIs. The admin dashboard must contain a Pending Registrations section with Approve and Reject actions. Keep the existing Login page, remove sample usernames/passwords, and add a link to Register. Record all security events in the tamper-evident audit trail."
+- **Problem Addressed:**
+  - Allowing public users to request vault accounts safely without self-assigning administrative rights or gaining immediate access to confidential corporate files.
+  - Enforcing strict status lifecycle (`PENDING` -> `ACTIVE` or `REJECTED`) with database constraints and server-side state machines.
+  - Removing exposed sample account credentials from the Login page to satisfy enterprise security standards.
+- **Implementation & Files:**
+  - Created `UserStatus` enum (`PENDING`, `ACTIVE`, `REJECTED`, `DEACTIVATED`) and added `status` column to `User.java` and `UserDto.java`.
+  - Added Flyway migration `V2__add_user_status.sql` in `backend/src/main/resources/db/migration` and `database/migrations`.
+  - Implemented `RegisterRequest.java` DTO and `POST /api/auth/register` in `AuthController.java` and `UserService.java`. Public registrations always default to `Role.VIEWER` and `UserStatus.PENDING`.
+  - Updated `CustomUserDetails.java` and `CustomUserDetailsService.java` to support dual login via username or email address, checking `isEnabled() = (status == UserStatus.ACTIVE)`.
+  - Updated `AuthController.login` to intercept disabled attempts, returning clear status messages ("Your registration request is pending administrator approval.") and cryptographically logging audit entries.
+  - Added `GET /api/admin/registrations/pending`, `POST /api/admin/registrations/{id}/approve`, and `POST /api/admin/registrations/{id}/reject` in `AdminController.java`.
+  - Added `REGISTRATION_REQUEST`, `REGISTRATION_APPROVE`, and `REGISTRATION_REJECT` to `AuditEventType.java`.
+  - Configured initial administrator bootstrap via environment variables (`TRUSTVAULT_ADMIN_*`) in `DataInitializer.java`.
+  - Created `frontend/src/pages/RegisterPage.jsx` with real backend submission, input validation, and pending approval guidance.
+  - Updated `frontend/src/pages/LoginPage.jsx` to remove the hardcoded demo credentials box and add a direct link to the Registration page.
+  - Updated `frontend/src/pages/AdminPage.jsx` to add the **Pending Registrations** management table with role assignment and one-click Approve/Reject actions.
+  - Added `RegistrationAndApprovalWorkflowTest.java` covering public registration, duplicate email/username rejection, password mismatch, pending login rejection, admin approval enabling login, and admin rejection.
+- **Result:**
+  - Backend test suite expanded to 28 automated integration tests: 100% passing (`BUILD SUCCESS`).
+  - Frontend built cleanly (`npm run build` completed with 0 errors).
+  - All theme and design system tests passing.
+- **Verification:**
+  - Ran `$env:MAVEN_OPTS="-Djava.net.preferIPv4Stack=true"; mvn test` -> 28/28 tests passed.
+  - Ran `npm run build` and `node test/theme.test.js` -> 0 errors.
+
 ---
 
 

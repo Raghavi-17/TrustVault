@@ -3,6 +3,7 @@ package com.trustvault.user;
 import com.trustvault.audit.AuditOutcome;
 import com.trustvault.audit.AuditService;
 import com.trustvault.audit.AuditEventType;
+import com.trustvault.auth.RegisterRequest;
 import com.trustvault.common.AccountDeactivatedException;
 import com.trustvault.common.BadRequestException;
 import com.trustvault.common.ResourceNotFoundException;
@@ -35,6 +36,13 @@ public class UserService {
     }
 
     @Transactional(readOnly = true)
+    public List<UserDto> getPendingUsers() {
+        return userRepository.findByStatus(UserStatus.PENDING).stream()
+                .map(UserDto::fromEntity)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
     public User getUserById(String id) {
         return userRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + id));
@@ -44,6 +52,111 @@ public class UserService {
     public User getUserByUsername(String username) {
         return userRepository.findByUsername(username)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found with username: " + username));
+    }
+
+    @Transactional
+    public UserDto registerUser(RegisterRequest request, String clientIp, String userAgent) {
+        if (!request.password().equals(request.confirmPassword())) {
+            throw new BadRequestException("Password and confirm password do not match");
+        }
+
+        String username = request.username();
+        if (username == null || username.trim().isEmpty()) {
+            username = request.email().trim().toLowerCase();
+        } else {
+            username = username.trim().toLowerCase();
+        }
+
+        String email = request.email().trim().toLowerCase();
+
+        if (userRepository.existsByUsername(username)) {
+            throw new BadRequestException("Username '" + username + "' is already registered");
+        }
+        if (userRepository.existsByEmail(email)) {
+            throw new BadRequestException("Email '" + email + "' is already registered");
+        }
+
+        // New registrations always start in PENDING status with VIEWER role - NEVER admin
+        User user = new User(
+                username,
+                passwordEncoder.encode(request.password()),
+                request.fullName().trim(),
+                email,
+                Role.VIEWER,
+                UserStatus.PENDING
+        );
+
+        User saved = userRepository.save(user);
+
+        auditService.recordEvent(
+                saved.getId(),
+                saved.getUsername(),
+                AuditEventType.REGISTRATION_REQUEST,
+                "USER",
+                saved.getId(),
+                AuditOutcome.SUCCESS,
+                clientIp,
+                userAgent,
+                null,
+                "User submitted registration request pending administrator approval"
+        );
+
+        return UserDto.fromEntity(saved);
+    }
+
+    @Transactional
+    public UserDto approveRegistration(String userId, Role assignedRole, String actorId, String actorUsername, String clientIp, String userAgent) {
+        User user = getUserById(userId);
+        if (user.getStatus() != UserStatus.PENDING) {
+            throw new BadRequestException("User account is not pending approval (current status: " + user.getStatus() + ")");
+        }
+
+        if (assignedRole != null && assignedRole != Role.ADMIN) {
+            user.setRole(assignedRole);
+        }
+        user.setStatus(UserStatus.ACTIVE);
+        User saved = userRepository.save(user);
+
+        auditService.recordEvent(
+                actorId,
+                actorUsername,
+                AuditEventType.REGISTRATION_APPROVE,
+                "USER",
+                saved.getId(),
+                AuditOutcome.SUCCESS,
+                clientIp,
+                userAgent,
+                null,
+                "Administrator approved registration for user: " + saved.getUsername() + " with role: " + saved.getRole()
+        );
+
+        return UserDto.fromEntity(saved);
+    }
+
+    @Transactional
+    public UserDto rejectRegistration(String userId, String actorId, String actorUsername, String clientIp, String userAgent) {
+        User user = getUserById(userId);
+        if (user.getStatus() != UserStatus.PENDING) {
+            throw new BadRequestException("User account is not pending approval (current status: " + user.getStatus() + ")");
+        }
+
+        user.setStatus(UserStatus.REJECTED);
+        User saved = userRepository.save(user);
+
+        auditService.recordEvent(
+                actorId,
+                actorUsername,
+                AuditEventType.REGISTRATION_REJECT,
+                "USER",
+                saved.getId(),
+                AuditOutcome.SUCCESS,
+                clientIp,
+                userAgent,
+                null,
+                "Administrator rejected registration for user: " + saved.getUsername()
+        );
+
+        return UserDto.fromEntity(saved);
     }
 
     @Transactional
@@ -118,7 +231,7 @@ public class UserService {
     public void verifyAccountActive(String userId) {
         User user = getUserById(userId);
         if (!user.isActive()) {
-            throw new AccountDeactivatedException("Your account has been deactivated. Access is denied.");
+            throw new AccountDeactivatedException("Your account is not active. Access is denied.");
         }
     }
 }

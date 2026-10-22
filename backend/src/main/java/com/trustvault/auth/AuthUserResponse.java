@@ -2,6 +2,7 @@ package com.trustvault.auth;
 
 import com.trustvault.user.Role;
 import com.trustvault.user.User;
+import com.trustvault.user.UserStatus;
 
 public record AuthUserResponse(
     String id,
@@ -9,6 +10,7 @@ public record AuthUserResponse(
     String fullName,
     String email,
     Role role,
+    UserStatus status,
     boolean isActive
 ) {
     public static AuthUserResponse fromUser(User user) {
@@ -18,6 +20,7 @@ public record AuthUserResponse(
             user.getFullName(),
             user.getEmail(),
             user.getRole(),
+            user.getStatus(),
             user.isActive()
         );
     }
@@ -29,6 +32,7 @@ public record AuthUserResponse(
             user.getFullName(),
             user.getEmail(),
             user.getRole(),
+            user.getStatus(),
             user.isEnabled()
         );
     }

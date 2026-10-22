@@ -2,6 +2,7 @@ package com.trustvault.auth;
 
 import com.trustvault.user.Role;
 import com.trustvault.user.User;
+import com.trustvault.user.UserStatus;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -17,6 +18,7 @@ public class CustomUserDetails implements UserDetails {
     private final String fullName;
     private final String email;
     private final Role role;
+    private final UserStatus status;
     private final boolean isActive;
     private final List<GrantedAuthority> authorities;
 
@@ -27,6 +29,7 @@ public class CustomUserDetails implements UserDetails {
         this.fullName = user.getFullName();
         this.email = user.getEmail();
         this.role = user.getRole();
+        this.status = user.getStatus();
         this.isActive = user.isActive();
         this.authorities = List.of(new SimpleGrantedAuthority("ROLE_" + user.getRole().name()));
     }
@@ -45,6 +48,10 @@ public class CustomUserDetails implements UserDetails {
 
     public Role getRole() {
         return role;
+    }
+
+    public UserStatus getStatus() {
+        return status;
     }
 
     @Override

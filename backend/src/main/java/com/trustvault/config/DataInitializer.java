@@ -31,6 +31,18 @@ public class DataInitializer implements CommandLineRunner {
     private final AuditEventRepository auditEventRepository;
     private final PasswordEncoder passwordEncoder;
 
+    @org.springframework.beans.factory.annotation.Value("${trustvault.admin.username:admin}")
+    private String adminUsername;
+
+    @org.springframework.beans.factory.annotation.Value("${trustvault.admin.password:Admin@TrustVault2026!}")
+    private String adminPassword;
+
+    @org.springframework.beans.factory.annotation.Value("${trustvault.admin.email:admin@trustvault.local}")
+    private String adminEmail;
+
+    @org.springframework.beans.factory.annotation.Value("${trustvault.admin.fullname:System Administrator}")
+    private String adminFullName;
+
     public DataInitializer(
             UserRepository userRepository,
             CategoryRepository categoryRepository,
@@ -64,14 +76,15 @@ public class DataInitializer implements CommandLineRunner {
 
     private void seedUsers() {
         if (userRepository.count() == 0) {
-            log.info("Seeding demo accounts (ADMIN, OWNER, VIEWER)...");
+            log.info("Seeding initial administrator and demo accounts...");
 
             User admin = new User(
-                    "admin",
-                    passwordEncoder.encode("Admin@TrustVault2026!"),
-                    "System Administrator",
-                    "admin@trustvault.local",
-                    Role.ADMIN
+                    adminUsername,
+                    passwordEncoder.encode(adminPassword),
+                    adminFullName,
+                    adminEmail,
+                    Role.ADMIN,
+                    com.trustvault.user.UserStatus.ACTIVE
             );
 
             User alice = new User(
@@ -79,7 +92,8 @@ public class DataInitializer implements CommandLineRunner {
                     passwordEncoder.encode("Owner@TrustVault2026!"),
                     "Alice Jenkins (Owner)",
                     "alice@trustvault.local",
-                    Role.OWNER
+                    Role.OWNER,
+                    com.trustvault.user.UserStatus.ACTIVE
             );
 
             User bob = new User(
@@ -87,7 +101,8 @@ public class DataInitializer implements CommandLineRunner {
                     passwordEncoder.encode("OwnerBob@TrustVault2026!"),
                     "Bob Martinez (Owner)",
                     "bob@trustvault.local",
-                    Role.OWNER
+                    Role.OWNER,
+                    com.trustvault.user.UserStatus.ACTIVE
             );
 
             User carol = new User(
@@ -95,11 +110,12 @@ public class DataInitializer implements CommandLineRunner {
                     passwordEncoder.encode("Viewer@TrustVault2026!"),
                     "Carol Vance (Viewer)",
                     "carol@trustvault.local",
-                    Role.VIEWER
+                    Role.VIEWER,
+                    com.trustvault.user.UserStatus.ACTIVE
             );
 
             userRepository.saveAll(List.of(admin, alice, bob, carol));
-            log.info("Demo users seeded successfully: admin, owner_alice, owner_bob, viewer_carol.");
+            log.info("Seed users created successfully (admin: {})", adminUsername);
         }
     }
 

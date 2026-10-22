@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { api } from '../api/client';
 import { 
   Users, UserPlus, ShieldAlert, ShieldCheck, CheckCircle2, 
-  XCircle, AlertTriangle, Activity, Lock, RefreshCw
+  XCircle, AlertTriangle, Activity, Lock, RefreshCw, Clock, Check, X
 } from 'lucide-react';
 import { Badge } from '../components/Badge';
 import { Modal } from '../components/Modal';
@@ -11,12 +11,18 @@ import { ConfirmDialog } from '../components/ConfirmDialog';
 export const AdminPage = () => {
   const [stats, setStats] = useState(null);
   const [users, setUsers] = useState([]);
+  const [pendingUsers, setPendingUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [actionSuccess, setActionSuccess] = useState('');
 
   // Status toggle state
   const [statusUser, setStatusUser] = useState(null);
   const [statusActionLoading, setStatusActionLoading] = useState(false);
+
+  // Approval action states
+  const [actionInProgressId, setActionInProgressId] = useState(null);
+  const [roleSelectionMap, setRoleSelectionMap] = useState({});
 
   // Create user modal
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -36,16 +42,52 @@ export const AdminPage = () => {
     try {
       setLoading(true);
       setError('');
-      const [statsRes, usersRes] = await Promise.all([
+      const [statsRes, usersRes, pendingRes] = await Promise.all([
         api.get('/admin/dashboard'),
         api.get('/users'),
+        api.get('/admin/registrations/pending'),
       ]);
       if (statsRes?.data) setStats(statsRes.data);
       if (usersRes?.data) setUsers(usersRes.data);
+      if (pendingRes?.data) setPendingUsers(pendingRes.data);
     } catch (err) {
       setError(err.message || 'Failed to load administrative oversight data');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleApproveRegistration = async (user) => {
+    setActionInProgressId(user.id);
+    setError('');
+    setActionSuccess('');
+    try {
+      const assignedRole = roleSelectionMap[user.id] || 'VIEWER';
+      await api.post(`/admin/registrations/${user.id}/approve`, { role: assignedRole });
+      setActionSuccess(`Approved registration for ${user.fullName} (${user.email}) as ${assignedRole}.`);
+      await fetchAdminData();
+    } catch (err) {
+      setError(err.message || 'Failed to approve registration');
+    } finally {
+      setActionInProgressId(null);
+    }
+  };
+
+  const handleRejectRegistration = async (user) => {
+    if (!window.confirm(`Are you sure you want to reject registration request from ${user.fullName} (${user.email})?`)) {
+      return;
+    }
+    setActionInProgressId(user.id);
+    setError('');
+    setActionSuccess('');
+    try {
+      await api.post(`/admin/registrations/${user.id}/reject`);
+      setActionSuccess(`Rejected registration request for ${user.fullName}.`);
+      await fetchAdminData();
+    } catch (err) {
+      setError(err.message || 'Failed to reject registration');
+    } finally {
+      setActionInProgressId(null);
     }
   };
 
@@ -99,6 +141,41 @@ export const AdminPage = () => {
     }
   };
 
+  const getStatusBadge = (user) => {
+    const status = user.status || (user.isActive ? 'ACTIVE' : 'DEACTIVATED');
+    switch (status) {
+      case 'ACTIVE':
+        return (
+          <Badge variant="success">
+            <CheckCircle2 size={12} />
+            <span>Active</span>
+          </Badge>
+        );
+      case 'PENDING':
+        return (
+          <Badge variant="warning">
+            <Clock size={12} />
+            <span>Pending Approval</span>
+          </Badge>
+        );
+      case 'REJECTED':
+        return (
+          <Badge variant="error">
+            <XCircle size={12} />
+            <span>Rejected</span>
+          </Badge>
+        );
+      case 'DEACTIVATED':
+      default:
+        return (
+          <Badge variant="error">
+            <XCircle size={12} />
+            <span>Deactivated</span>
+          </Badge>
+        );
+    }
+  };
+
   return (
     <div className="page-body">
       <div className="flex-between" style={{ marginBottom: '1.75rem', flexWrap: 'wrap', gap: '1rem' }}>
@@ -118,8 +195,15 @@ export const AdminPage = () => {
         </div>
       </div>
 
+      {actionSuccess && (
+        <div className="alert alert-success" style={{ marginBottom: '1.5rem' }}>
+          <CheckCircle2 size={18} />
+          <div>{actionSuccess}</div>
+        </div>
+      )}
+
       {error && (
-        <div className="alert alert-error">
+        <div className="alert alert-error" style={{ marginBottom: '1.5rem' }}>
           <AlertTriangle size={18} />
           <div>{error}</div>
         </div>
@@ -130,16 +214,36 @@ export const AdminPage = () => {
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
             gap: '1rem',
             marginBottom: '2rem',
           }}
         >
           <div className="card">
-            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Total Registered Users</span>
+            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Total Users</span>
             <div style={{ fontSize: '1.75rem', fontWeight: 800, margin: '0.25rem 0' }}>{stats.totalUsers}</div>
             <div style={{ fontSize: '0.75rem', color: 'var(--status-success)' }}>
-              {stats.activeUsers} Active / {stats.deactivatedUsers} Deactivated
+              {stats.activeUsers} Active / {stats.deactivatedUsers} Inactive
+            </div>
+          </div>
+
+          <div
+            className="card"
+            style={stats.pendingRegistrations > 0 ? { border: '2px solid var(--status-warning)' } : {}}
+          >
+            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Pending Approvals</span>
+            <div
+              style={{
+                fontSize: '1.75rem',
+                fontWeight: 800,
+                margin: '0.25rem 0',
+                color: stats.pendingRegistrations > 0 ? 'var(--status-warning)' : 'inherit',
+              }}
+            >
+              {stats.pendingRegistrations}
+            </div>
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+              {stats.pendingRegistrations > 0 ? 'Requires administrator action' : 'No requests pending'}
             </div>
           </div>
 
@@ -170,14 +274,137 @@ export const AdminPage = () => {
             </div>
             <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Rate-limited failures</div>
           </div>
-
-          <div className="card">
-            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Permission Changes</span>
-            <div style={{ fontSize: '1.75rem', fontWeight: 800, margin: '0.25rem 0' }}>{stats.totalPermissionChanges}</div>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Grants, edits & revocations</div>
-          </div>
         </div>
       )}
+
+      {/* Pending Registrations Section */}
+      <div className="card" style={{ marginBottom: '2rem' }}>
+        <div className="flex-between" style={{ marginBottom: '1.25rem' }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Clock size={20} style={{ color: 'var(--status-warning)' }} />
+              <h3 style={{ margin: 0 }}>Pending Registrations</h3>
+              {pendingUsers.length > 0 && (
+                <span
+                  style={{
+                    backgroundColor: 'var(--status-warning)',
+                    color: '#000',
+                    fontWeight: 700,
+                    borderRadius: '999px',
+                    padding: '0.15rem 0.55rem',
+                    fontSize: '0.75rem',
+                  }}
+                >
+                  {pendingUsers.length} awaiting review
+                </span>
+              )}
+            </div>
+            <p style={{ fontSize: '0.82rem', marginTop: '0.25rem' }}>
+              Public registration requests must be reviewed and approved by an administrator before users can authenticate.
+            </p>
+          </div>
+        </div>
+
+        {pendingUsers.length === 0 ? (
+          <div
+            style={{
+              padding: '2.5rem 1rem',
+              textAlign: 'center',
+              backgroundColor: 'var(--bg-app)',
+              borderRadius: 'var(--radius-sm)',
+              border: '1px dashed var(--border-color)',
+            }}
+          >
+            <CheckCircle2 size={32} style={{ color: 'var(--brand-primary)', marginBottom: '0.5rem' }} />
+            <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>All caught up!</div>
+            <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
+              There are no pending registration requests awaiting approval at this time.
+            </div>
+          </div>
+        ) : (
+          <div className="table-responsive">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Requested By</th>
+                  <th>Email</th>
+                  <th>Submitted At</th>
+                  <th>Assigned Role</th>
+                  <th style={{ textAlign: 'right' }}>Review Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pendingUsers.map((p) => {
+                  const isProcessing = actionInProgressId === p.id;
+                  const selectedRole = roleSelectionMap[p.id] || 'VIEWER';
+                  return (
+                    <tr key={p.id}>
+                      <td>
+                        <div style={{ fontWeight: 600 }}>{p.fullName}</div>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>@{p.username}</div>
+                      </td>
+                      <td style={{ fontSize: '0.85rem' }}>{p.email}</td>
+                      <td style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                        {new Date(p.createdAt).toLocaleString()}
+                      </td>
+                      <td>
+                        <select
+                          className="form-select"
+                          style={{ fontSize: '0.8rem', padding: '0.35rem 0.6rem', width: 'auto', minWidth: '120px' }}
+                          value={selectedRole}
+                          onChange={(e) => setRoleSelectionMap((prev) => ({ ...prev, [p.id]: e.target.value }))}
+                          disabled={isProcessing}
+                        >
+                          <option value="VIEWER">VIEWER (Default)</option>
+                          <option value="OWNER">OWNER</option>
+                        </select>
+                      </td>
+                      <td style={{ textAlign: 'right' }}>
+                        <div style={{ display: 'inline-flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-primary"
+                            style={{
+                              fontSize: '0.75rem',
+                              padding: '0.35rem 0.75rem',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.3rem',
+                            }}
+                            onClick={() => handleApproveRegistration(p)}
+                            disabled={isProcessing}
+                          >
+                            <Check size={14} />
+                            <span>{isProcessing ? 'Processing...' : 'Approve'}</span>
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-outline"
+                            style={{
+                              fontSize: '0.75rem',
+                              padding: '0.35rem 0.75rem',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.3rem',
+                              borderColor: 'var(--status-error)',
+                              color: 'var(--status-error)',
+                            }}
+                            onClick={() => handleRejectRegistration(p)}
+                            disabled={isProcessing}
+                          >
+                            <X size={14} />
+                            <span>Reject</span>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
 
       {/* Users Management Table */}
       <div className="card" style={{ marginBottom: '2rem' }}>
@@ -214,19 +441,7 @@ export const AdminPage = () => {
                     <td>
                       <Badge variant={getRoleBadgeVariant(u.role)}>{u.role}</Badge>
                     </td>
-                    <td>
-                      {u.isActive ? (
-                        <Badge variant="success">
-                          <CheckCircle2 size={12} />
-                          <span>Active</span>
-                        </Badge>
-                      ) : (
-                        <Badge variant="error">
-                          <XCircle size={12} />
-                          <span>Deactivated</span>
-                        </Badge>
-                      )}
-                    </td>
+                    <td>{getStatusBadge(u)}</td>
                     <td style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
                       {new Date(u.createdAt).toLocaleDateString()}
                     </td>

@@ -67,7 +67,7 @@ public class SecurityConfig {
             // Ignoring CSRF on login/logout so browser SPA can initiate session cleanly
             .csrf(csrf -> csrf
                 .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
-                .ignoringRequestMatchers("/api/auth/login", "/api/auth/logout", "/api/auth/csrf", "/actuator/**")
+                .ignoringRequestMatchers("/api/auth/login", "/api/auth/register", "/api/auth/logout", "/api/auth/csrf", "/actuator/**")
             )
             .sessionManagement(session -> session
                 .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
@@ -76,6 +76,7 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(
                     "/api/auth/login",
+                    "/api/auth/register",
                     "/api/auth/logout",
                     "/api/auth/csrf",
                     "/api/health",

@@ -8,11 +8,47 @@ This document provides complete technical specifications for the TrustVault REST
 
 ## 1. AUTHENTICATION & SESSION ENDPOINTS
 
-### 1.1 Login & Session Establishment
+### 1.1 User Registration (Pending Admin Approval)
+- **Method**: `POST`
+- **Path**: `/api/auth/register`
+- **Authentication**: None (Public)
+- **Request Body**:
+  ```json
+  {
+    "fullName": "Eleanor Vance",
+    "email": "eleanor@example.com",
+    "username": "evance",
+    "password": "SecurePassword123!",
+    "confirmPassword": "SecurePassword123!"
+  }
+  ```
+- **Response** (`201 Created`):
+  ```json
+  {
+    "success": true,
+    "message": "Registration submitted successfully. Your account is pending administrator approval.",
+    "data": {
+      "id": "b182cb41-...",
+      "username": "evance",
+      "fullName": "Eleanor Vance",
+      "email": "eleanor@example.com",
+      "role": "VIEWER",
+      "status": "PENDING",
+      "isActive": false,
+      "createdAt": "2026-10-22T10:00:00Z"
+    },
+    "timestamp": "2026-10-22T10:00:00Z"
+  }
+  ```
+- **Error Responses**: `400 Bad Request` (Passwords do not match, invalid email, duplicate username or email).
+- **Audit Behavior**: Logs `REGISTRATION_REQUEST` into the immutable hash chain.
+
+### 1.2 Login & Session Establishment
 - **Method**: `POST`
 - **Path**: `/api/auth/login`
 - **Authentication**: None (Public)
-- **Rate Limiting**: 5 failed attempts per 15-minute sliding window per IP/username.
+- **Identifier**: Supports authentication with either **username** or **email address**.
+- **Rate Limiting**: 5 failed attempts per 15-minute sliding window per IP/account.
 - **Request Body**:
   ```json
   {
@@ -31,13 +67,18 @@ This document provides complete technical specifications for the TrustVault REST
       "fullName": "Alice Jenkins (Owner)",
       "email": "alice@trustvault.local",
       "role": "OWNER",
-      "active": true
+      "status": "ACTIVE",
+      "isActive": true
     },
     "timestamp": "2026-10-22T09:20:00Z"
   }
   ```
-- **Error Responses**: `401 Unauthorized` (Invalid credentials), `403 Forbidden` (Account deactivated), `429 Too Many Requests` (Rate limit exceeded).
-- **Audit Behavior**: Logs `LOGIN_SUCCESS` on success or `LOGIN_FAILURE` on denial.
+- **Account Status Enforcement (`403 Forbidden`)**:
+  - `PENDING`: Returns `"Your registration request is pending administrator approval."` (audit event logged).
+  - `REJECTED`: Returns `"Your account registration has been rejected. Please contact an administrator."` (audit event logged).
+  - `DEACTIVATED`: Returns `"Your account has been deactivated. Please contact an administrator."` (audit event logged).
+- **Error Responses**: `401 Unauthorized` (Invalid credentials), `403 Forbidden` (Inactive account), `429 Too Many Requests` (Rate limit exceeded).
+- **Audit Behavior**: Logs `LOGIN_SUCCESS` on success or `LOGIN_FAILURE` with reason on denial.
 
 ### 1.2 Session Termination (Logout)
 - **Method**: `POST`
@@ -249,12 +290,41 @@ This document provides complete technical specifications for the TrustVault REST
 - **Method**: `GET`
 - **Path**: `/api/admin/dashboard`
 - **Authentication**: Required (`ROLE_ADMIN`)
-- **Response** (`200 OK`): Real aggregated security statistics, account counts, access denial numbers, and verification status.
+- **Response** (`200 OK`): Real aggregated security statistics including `pendingRegistrations`, account counts, access denial numbers, and verification status.
 
-### 5.2 User Account Status Toggle
+### 5.2 List Pending Registrations
+- **Method**: `GET`
+- **Path**: `/api/admin/registrations/pending`
+- **Authentication**: Required (`ROLE_ADMIN`)
+- **Response** (`200 OK`): List of user accounts currently in `PENDING` status awaiting review.
+
+### 5.3 Approve Pending Registration
+- **Method**: `POST`
+- **Path**: `/api/admin/registrations/{id}/approve`
+- **Authentication**: Required (`ROLE_ADMIN`)
+- **CSRF Token**: Required
+- **Request Body** (optional):
+  ```json
+  {
+    "role": "VIEWER"
+  }
+  ```
+- **Response** (`200 OK`): Updates user status to `ACTIVE` and enables account login.
+- **Audit Behavior**: Cryptographically records `REGISTRATION_APPROVE`.
+
+### 5.4 Reject Pending Registration
+- **Method**: `POST`
+- **Path**: `/api/admin/registrations/{id}/reject`
+- **Authentication**: Required (`ROLE_ADMIN`)
+- **CSRF Token**: Required
+- **Response** (`200 OK`): Updates user status to `REJECTED`.
+- **Audit Behavior**: Cryptographically records `REGISTRATION_REJECT`.
+
+### 5.5 User Account Status Toggle
 - **Method**: `PUT`
 - **Path**: `/api/users/{id}/status`
 - **Authentication**: Required (`ROLE_ADMIN`)
+- **CSRF Token**: Required
 - **Request Body**: `{ "isActive": false }`
 - **Response** (`200 OK`): Updated user record.
 - **Audit Behavior**: Logs `ACCOUNT_DEACTIVATE` or `ACCOUNT_ACTIVATE`.

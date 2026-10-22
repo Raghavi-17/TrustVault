@@ -8,6 +8,7 @@ public record UserDto(
     String fullName,
     String email,
     Role role,
+    UserStatus status,
     boolean isActive,
     Instant createdAt
 ) {
@@ -18,6 +19,7 @@ public record UserDto(
             user.getFullName(),
             user.getEmail(),
             user.getRole(),
+            user.getStatus(),
             user.isActive(),
             user.getCreatedAt()
         );

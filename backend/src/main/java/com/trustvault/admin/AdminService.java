@@ -43,7 +43,8 @@ public class AdminService {
         List<User> users = userRepository.findAll();
         long totalUsers = users.size();
         long activeUsers = users.stream().filter(User::isActive).count();
-        long deactivatedUsers = totalUsers - activeUsers;
+        long deactivatedUsers = users.stream().filter(u -> u.getStatus() == com.trustvault.user.UserStatus.DEACTIVATED || (!u.isActive() && u.getStatus() != com.trustvault.user.UserStatus.PENDING)).count();
+        long pendingRegistrations = users.stream().filter(u -> u.getStatus() == com.trustvault.user.UserStatus.PENDING).count();
 
         long totalDocuments = documentRepository.count();
         long totalUploads = auditEventRepository.countByAction(AuditEventType.DOCUMENT_UPLOAD);
@@ -65,6 +66,7 @@ public class AdminService {
                 totalUsers,
                 activeUsers,
                 deactivatedUsers,
+                pendingRegistrations,
                 totalDocuments,
                 totalUploads,
                 totalDownloads,
