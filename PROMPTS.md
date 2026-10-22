@@ -107,6 +107,29 @@ This file documents genuine AI interactions, architectural decisions, authorizat
   - Ran `$env:MAVEN_OPTS="-Djava.net.preferIPv4Stack=true"; mvn test` -> 28/28 tests passed.
   - Ran `npm run build` and `node test/theme.test.js` -> 0 errors.
 
+### Entry 7 — 2026-10-22: Restoring Demo Accounts Feature on Login Page
+- **Prompt Used:**
+  "Restore the Demo feature that existed in the original TrustVault project before the recent modifications. Inspect the existing project and Git history to identify the original Demo button, its page, and its behavior. Restore the Demo option on the Login page and its original intended functionality. Keep demo data separate from real user accounts and confidential documents. Demo access must never bypass backend authentication or document authorization for real data. Preserve the existing Login and Registration pages, admin approval workflow, user management, audit logging, and document-sharing features. Make the smallest safe change needed to restore the Demo feature."
+- **Problem Addressed:**
+  - Restoring the convenient demonstration and evaluation capabilities (`handleQuickFill`) on `LoginPage.jsx` that were present in commit `4c48f48`.
+  - Ensuring the Demo option coexists harmoniously with the new self-registration and admin approval workflow.
+- **Implementation & Files:**
+  - Recovered the original demo quick-fill UI from commit `4c48f48` in `frontend/src/pages/LoginPage.jsx`.
+  - Restored `handleQuickFill(username, password)` with 4 pre-configured demo roles:
+    - **Admin**: `admin` / `Admin@TrustVault2026!`
+    - **Owner (Alice)**: `owner_alice` / `Owner@TrustVault2026!`
+    - **Owner (Bob)**: `owner_bob` / `OwnerBob@TrustVault2026!`
+    - **Viewer (Carol)**: `viewer_carol` / `Viewer@TrustVault2026!`
+  - Preserved the new **"Request Account Registration"** button, info banner, and error handling for pending/rejected accounts.
+  - Demo accounts authenticate against real BCrypt credentials in the database via `POST /api/auth/login`, establishing real sessions and respecting granular per-document authorization without bypassing security policies.
+- **Result:**
+  - Smallest safe change achieved: only `LoginPage.jsx` and documentation updated.
+  - Frontend production build (`npm run build`) succeeded with 0 errors.
+  - All automated frontend design/theme tests passed.
+- **Verification:**
+  - Verified git history diff between `4c48f48` and current tree.
+  - Re-ran `npm run build` and `node test/theme.test.js`.
+
 ---
 
 

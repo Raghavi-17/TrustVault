@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
-import { ShieldCheck, Lock, User, AlertCircle, Info, UserPlus } from 'lucide-react';
+import { ShieldCheck, Lock, User, AlertCircle, Info, UserPlus, Sparkles } from 'lucide-react';
 import { ThemeToggle } from '../components/ThemeToggle';
 
 export const LoginPage = () => {
@@ -31,6 +31,12 @@ export const LoginPage = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleQuickFill = (u, p) => {
+    setUsername(u);
+    setPassword(p);
+    setError('');
   };
 
   return (
@@ -174,32 +180,78 @@ export const LoginPage = () => {
             </button>
           </form>
 
+          {/* Restored Demo Accounts Quick-Fill Section */}
           <div
             style={{
               marginTop: '1.75rem',
               paddingTop: '1.25rem',
               borderTop: '1px solid var(--border-color)',
-              textAlign: 'center',
             }}
           >
-            <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', marginBottom: '0.75rem' }}>
-              Need an account to access confidential documents?
-            </p>
-            <Link
-              to="/register"
-              className="btn btn-outline"
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.75rem' }}>
+              <Sparkles size={14} style={{ color: 'var(--brand-primary)' }} />
+              <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                Demo Accounts (Click to quick-fill)
+              </span>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '1.25rem' }}>
+              <button
+                type="button"
+                className="btn btn-outline btn-sm"
+                onClick={() => handleQuickFill('admin', 'Admin@TrustVault2026!')}
+              >
+                Admin
+              </button>
+              <button
+                type="button"
+                className="btn btn-outline btn-sm"
+                onClick={() => handleQuickFill('owner_alice', 'Owner@TrustVault2026!')}
+              >
+                Owner (Alice)
+              </button>
+              <button
+                type="button"
+                className="btn btn-outline btn-sm"
+                onClick={() => handleQuickFill('owner_bob', 'OwnerBob@TrustVault2026!')}
+              >
+                Owner (Bob)
+              </button>
+              <button
+                type="button"
+                className="btn btn-outline btn-sm"
+                onClick={() => handleQuickFill('viewer_carol', 'Viewer@TrustVault2026!')}
+              >
+                Viewer (Carol)
+              </button>
+            </div>
+
+            <div
               style={{
-                width: '100%',
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '0.5rem',
-                textDecoration: 'none',
+                paddingTop: '1rem',
+                borderTop: '1px dashed var(--border-color)',
+                textAlign: 'center',
               }}
             >
-              <UserPlus size={16} />
-              <span>Request Account Registration</span>
-            </Link>
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.6rem' }}>
+                Need a personal account?
+              </p>
+              <Link
+                to="/register"
+                className="btn btn-outline btn-sm"
+                style={{
+                  width: '100%',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.5rem',
+                  textDecoration: 'none',
+                }}
+              >
+                <UserPlus size={15} />
+                <span>Request Account Registration</span>
+              </Link>
+            </div>
           </div>
         </div>
       </div>

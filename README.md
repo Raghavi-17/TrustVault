@@ -43,20 +43,11 @@ TrustVault is a full-stack, enterprise-grade document sharing web application en
 
 ---
 
-## 3. User Accounts & Administrator Setup
+## 3. User Accounts & Demo Capabilities
 
-In compliance with enterprise security requirements, **sample credentials and quick-fill buttons have been completely removed from the Login page**.
+For local evaluation, demonstrations, and hackathon presentation, the Login screen provides convenient **Demo Accounts quick-fill buttons** (`Admin`, `Owner (Alice)`, `Owner (Bob)`, `Viewer (Carol)`) alongside the **Request Account Registration** link. 
 
-Initial administrator credentials can be configured at startup via environment variables or Spring properties:
-```bash
-# Optional Environment Variables for Administrator Bootstrap
-TRUSTVAULT_ADMIN_USERNAME=admin
-TRUSTVAULT_ADMIN_PASSWORD=Admin@TrustVault2026!
-TRUSTVAULT_ADMIN_EMAIL=admin@trustvault.local
-TRUSTVAULT_ADMIN_FULLNAME="System Administrator"
-```
-
-For testing and local evaluation, reproducible accounts are initialized in the database:
+Each demo account authenticates through real backend security, establishes an authenticated HTTP-only session, and respects full per-document permissions without bypassing authorization:
 
 | Role | Username / Identifier | Password | Status | Purpose & Capabilities |
 | :--- | :--- | :--- | :--- | :--- |
@@ -65,7 +56,16 @@ For testing and local evaluation, reproducible accounts are initialized in the d
 | **OWNER** | `owner_bob` (or `bob@trustvault.local`) | `OwnerBob@TrustVault2026!` | `ACTIVE` | Secondary document owner for cross-user permission testing. |
 | **VIEWER** | `viewer_carol` (or `carol@trustvault.local`) | `Viewer@TrustVault2026!` | `ACTIVE` | Read and download documents explicitly shared with her. Blocked from unshared documents. |
 
-*Users can log in with either their username or email address.*
+*Quick-fill buttons are provided directly on the Login screen for seamless evaluation.*
+
+Initial administrator credentials can also be configured at startup via environment variables or Spring properties:
+```bash
+# Optional Environment Variables for Administrator Bootstrap
+TRUSTVAULT_ADMIN_USERNAME=admin
+TRUSTVAULT_ADMIN_PASSWORD=Admin@TrustVault2026!
+TRUSTVAULT_ADMIN_EMAIL=admin@trustvault.local
+TRUSTVAULT_ADMIN_FULLNAME="System Administrator"
+```
 
 ---
 
