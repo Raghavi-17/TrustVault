@@ -32,12 +32,35 @@ async function request(endpoint, options = {}) {
   }
 
   // Attach CSRF token if state-changing request
-  if (['POST', 'PUT', 'DELETE', 'PATCH'].includes((options.method || 'GET').toUpperCase())) {
-    const token = getCookie('XSRF-TOKEN') || inMemoryCsrfToken;
-    if (token) {
-      headers['X-XSRF-TOKEN'] = token;
-    }
+const method = (options.method || 'GET').toUpperCase();
+
+if (
+  ['POST', 'PUT', 'DELETE', 'PATCH'].includes(method) &&
+  !endpoint.includes('/auth/login') &&
+  !endpoint.includes('/auth/register') &&
+  !endpoint.includes('/auth/csrf')
+) {
+  const csrfResponse = await fetch(`${API_BASE}/auth/csrf`, {
+    method: 'GET',
+    credentials: 'include',
+  });
+
+  const csrfData = await csrfResponse.json();
+
+  const token =
+    csrfData?.data?.token ??
+    csrfData?.token ??
+    inMemoryCsrfToken ??
+    getCookie('XSRF-TOKEN');
+
+  const headerName =
+    csrfData?.data?.headerName ?? 'X-XSRF-TOKEN';
+
+  if (token) {
+    setCsrfToken(token);
+    headers[headerName] = token;
   }
+}
 
   const config = {
     ...options,
