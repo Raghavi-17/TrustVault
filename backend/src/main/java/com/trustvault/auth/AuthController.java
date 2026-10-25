@@ -145,7 +145,7 @@ public class AuthController {
                     "Invalid credentials provided for username: " + request.username()
             );
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(ApiResponse.ok("Invalid username or password", null));
+                    .body(ApiResponse.error("Invalid username or password"));
         } catch (DisabledException ex) {
             String msg = "Account is not active. Please contact an administrator.";
             String auditMsg = "Login attempt on inactive account: " + request.username();
@@ -177,7 +177,7 @@ public class AuthController {
                     auditMsg
             );
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                    .body(ApiResponse.ok(msg, null));
+                    .body(ApiResponse.error(msg));
         }
     }
 
@@ -226,7 +226,7 @@ public class AuthController {
         if (!user.isActive()) {
             SecurityContextHolder.clearContext();
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                    .body(ApiResponse.ok("Account is deactivated", null));
+                    .body(ApiResponse.error("Account is deactivated"));
         }
 
         return ResponseEntity.ok(ApiResponse.ok(AuthUserResponse.fromUser(user)));

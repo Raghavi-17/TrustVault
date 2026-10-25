@@ -31,7 +31,10 @@ public class CustomUserDetails implements UserDetails {
         this.role = user.getRole();
         this.status = user.getStatus();
         this.isActive = user.isActive();
-        this.authorities = List.of(new SimpleGrantedAuthority("ROLE_" + user.getRole().name()));
+        this.authorities = List.of(
+            new SimpleGrantedAuthority("ROLE_" + user.getRole().name()),
+            new SimpleGrantedAuthority(user.getRole().name())
+        );
     }
 
     public String getId() {
@@ -86,6 +89,6 @@ public class CustomUserDetails implements UserDetails {
 
     @Override
     public boolean isEnabled() {
-        return isActive;
+        return isActive && (status == null || status == UserStatus.ACTIVE);
     }
 }

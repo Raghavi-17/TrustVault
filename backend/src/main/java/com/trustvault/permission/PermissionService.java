@@ -62,9 +62,10 @@ public class PermissionService {
             throw new BadRequestException("Permission already exists for user: " + targetUser.getUsername() + ". Use update permission to modify.");
         }
 
-        DocumentPermission permission = new DocumentPermission(document, targetUser, request.permission(), granter);
+        DocumentPermission permission = new DocumentPermission(document, targetUser, request.permission(), granter, request.expiresAt());
         DocumentPermission saved = permissionRepository.save(permission);
 
+        String expiresMsg = request.expiresAt() != null ? " (expires: " + request.expiresAt() + ")" : "";
         auditService.recordEvent(
                 granter.getId(),
                 granter.getUsername(),
@@ -75,7 +76,7 @@ public class PermissionService {
                 clientIp,
                 userAgent,
                 null,
-                "Granted " + request.permission() + " access on '" + document.getTitle() + "' to user " + targetUser.getUsername()
+                "Granted " + request.permission() + " access on '" + document.getTitle() + "' to user " + targetUser.getUsername() + expiresMsg
         );
 
         return PermissionDto.fromEntity(saved);
@@ -91,6 +92,9 @@ public class PermissionService {
 
         PermissionLevel oldLevel = permission.getPermission();
         permission.setPermission(request.permission());
+        if (request.expiresAt() != null) {
+            permission.setExpiresAt(request.expiresAt());
+        }
         permission.setUpdatedAt(Instant.now());
 
         DocumentPermission updated = permissionRepository.save(permission);

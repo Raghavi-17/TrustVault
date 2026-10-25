@@ -1,14 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../api/client';
+import { useAuth } from '../context/AuthContext';
 import { 
   Users, UserPlus, ShieldAlert, ShieldCheck, CheckCircle2, 
-  XCircle, AlertTriangle, Activity, Lock, RefreshCw, Clock, Check, X
+  XCircle, AlertTriangle, Activity, Lock, RefreshCw, Clock, Check, X, Search
 } from 'lucide-react';
 import { Badge } from '../components/Badge';
 import { Modal } from '../components/Modal';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 
 export const AdminPage = () => {
+  const { user: currentUser } = useAuth();
   const [stats, setStats] = useState(null);
   const [users, setUsers] = useState([]);
   const [pendingUsers, setPendingUsers] = useState([]);
@@ -20,9 +22,17 @@ export const AdminPage = () => {
   const [statusUser, setStatusUser] = useState(null);
   const [statusActionLoading, setStatusActionLoading] = useState(false);
 
+  // Reject confirmation state
+  const [rejectUser, setRejectUser] = useState(null);
+
   // Approval action states
   const [actionInProgressId, setActionInProgressId] = useState(null);
   const [roleSelectionMap, setRoleSelectionMap] = useState({});
+
+  // User directory filters
+  const [userSearch, setUserSearch] = useState('');
+  const [roleFilter, setRoleFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
 
   // Create user modal
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -73,16 +83,16 @@ export const AdminPage = () => {
     }
   };
 
-  const handleRejectRegistration = async (user) => {
-    if (!window.confirm(`Are you sure you want to reject registration request from ${user.fullName} (${user.email})?`)) {
-      return;
-    }
-    setActionInProgressId(user.id);
+  const handleConfirmReject = async () => {
+    if (!rejectUser) return;
+    const userToReject = rejectUser;
+    setActionInProgressId(userToReject.id);
     setError('');
     setActionSuccess('');
     try {
-      await api.post(`/admin/registrations/${user.id}/reject`);
-      setActionSuccess(`Rejected registration request for ${user.fullName}.`);
+      await api.post(`/admin/registrations/${userToReject.id}/reject`);
+      setActionSuccess(`Rejected registration request for ${userToReject.fullName}.`);
+      setRejectUser(null);
       await fetchAdminData();
     } catch (err) {
       setError(err.message || 'Failed to reject registration');
@@ -93,6 +103,11 @@ export const AdminPage = () => {
 
   const handleToggleUserStatus = async () => {
     if (!statusUser) return;
+    if (statusUser.id === currentUser?.id || statusUser.username === currentUser?.username) {
+      setError('Safety constraint: You cannot deactivate your own logged-in administrator account.');
+      setStatusUser(null);
+      return;
+    }
     setStatusActionLoading(true);
     try {
       const newStatus = !statusUser.isActive;
@@ -134,7 +149,7 @@ export const AdminPage = () => {
 
   const getRoleBadgeVariant = (role) => {
     switch (role) {
-      case 'ADMIN': return 'error';
+      case 'ADMIN': return 'copper';
       case 'OWNER': return 'success';
       case 'VIEWER': return 'info';
       default: return 'neutral';
@@ -315,7 +330,7 @@ export const AdminPage = () => {
               border: '1px dashed var(--border-color)',
             }}
           >
-            <CheckCircle2 size={32} style={{ color: 'var(--brand-primary)', marginBottom: '0.5rem' }} />
+            <CheckCircle2 size={32} style={{ color: 'var(--brand-highlight)', marginBottom: '0.5rem' }} />
             <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>All caught up!</div>
             <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
               There are no pending registration requests awaiting approval at this time.
@@ -389,7 +404,7 @@ export const AdminPage = () => {
                               borderColor: 'var(--status-error)',
                               color: 'var(--status-error)',
                             }}
-                            onClick={() => handleRejectRegistration(p)}
+                            onClick={() => setRejectUser(p)}
                             disabled={isProcessing}
                           >
                             <X size={14} />
@@ -408,10 +423,61 @@ export const AdminPage = () => {
 
       {/* Users Management Table */}
       <div className="card" style={{ marginBottom: '2rem' }}>
-        <div className="flex-between" style={{ marginBottom: '1.25rem' }}>
+        <div className="flex-between" style={{ marginBottom: '1.25rem', flexWrap: 'wrap', gap: '1rem' }}>
           <div>
             <h3>User Directory & Account Status</h3>
             <p style={{ fontSize: '0.82rem' }}>Deactivating an account instantly cuts off session and document access</p>
+          </div>
+        </div>
+
+        {/* Search & Filter Toolbar */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.75rem', marginBottom: '1.25rem' }}>
+          <div style={{ position: 'relative' }}>
+            <input
+              type="text"
+              className="form-input"
+              style={{ paddingLeft: '2.3rem', fontSize: '0.85rem' }}
+              placeholder="Search user, email, or name..."
+              value={userSearch}
+              onChange={(e) => setUserSearch(e.target.value)}
+            />
+            <Search
+              size={15}
+              style={{
+                position: 'absolute',
+                left: '0.75rem',
+                top: '50%',
+                transform: 'translateY(-50%)',
+                color: 'var(--text-muted)',
+              }}
+            />
+          </div>
+
+          <div>
+            <select
+              className="form-select"
+              style={{ fontSize: '0.85rem' }}
+              value={roleFilter}
+              onChange={(e) => setRoleFilter(e.target.value)}
+            >
+              <option value="">All Roles</option>
+              <option value="ADMIN">ADMIN</option>
+              <option value="OWNER">OWNER</option>
+              <option value="VIEWER">VIEWER</option>
+            </select>
+          </div>
+
+          <div>
+            <select
+              className="form-select"
+              style={{ fontSize: '0.85rem' }}
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+            >
+              <option value="">All Statuses</option>
+              <option value="ACTIVE">Active Accounts</option>
+              <option value="DEACTIVATED">Deactivated Accounts</option>
+            </select>
           </div>
         </div>
 
@@ -431,31 +497,55 @@ export const AdminPage = () => {
                 </tr>
               </thead>
               <tbody>
-                {users.map((u) => (
-                  <tr key={u.id}>
-                    <td>
-                      <div style={{ fontWeight: 600 }}>{u.fullName}</div>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>@{u.username}</div>
-                    </td>
-                    <td style={{ fontSize: '0.85rem' }}>{u.email}</td>
-                    <td>
-                      <Badge variant={getRoleBadgeVariant(u.role)}>{u.role}</Badge>
-                    </td>
-                    <td>{getStatusBadge(u)}</td>
-                    <td style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                      {new Date(u.createdAt).toLocaleDateString()}
-                    </td>
-                    <td style={{ textAlign: 'right' }}>
-                      <button
-                        className={`btn btn-sm ${u.isActive ? 'btn-outline' : 'btn-primary'}`}
-                        style={{ fontSize: '0.75rem', padding: '0.25rem 0.6rem' }}
-                        onClick={() => setStatusUser(u)}
-                      >
-                        {u.isActive ? 'Deactivate' : 'Activate'}
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                {users
+                  .filter((u) => {
+                    const q = userSearch.toLowerCase().trim();
+                    const matchesSearch = !q ||
+                      (u.fullName && u.fullName.toLowerCase().includes(q)) ||
+                      (u.username && u.username.toLowerCase().includes(q)) ||
+                      (u.email && u.email.toLowerCase().includes(q));
+                    const matchesRole = !roleFilter || u.role === roleFilter;
+                    const matchesStatus = !statusFilter ||
+                      (statusFilter === 'ACTIVE' && u.isActive) ||
+                      (statusFilter === 'DEACTIVATED' && !u.isActive);
+                    return matchesSearch && matchesRole && matchesStatus;
+                  })
+                  .map((u) => {
+                    const isSelf = currentUser?.id === u.id || currentUser?.username === u.username;
+                    return (
+                      <tr key={u.id}>
+                        <td>
+                          <div style={{ fontWeight: 600 }}>
+                            {u.fullName} {isSelf && <span style={{ fontSize: '0.7rem', color: 'var(--brand-highlight)', fontWeight: 500 }}>(You)</span>}
+                          </div>
+                          <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>@{u.username}</div>
+                        </td>
+                        <td style={{ fontSize: '0.85rem' }}>{u.email}</td>
+                        <td>
+                          <Badge variant={getRoleBadgeVariant(u.role)}>{u.role}</Badge>
+                        </td>
+                        <td>{getStatusBadge(u)}</td>
+                        <td style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                          {new Date(u.createdAt).toLocaleDateString()}
+                        </td>
+                        <td style={{ textAlign: 'right' }}>
+                          {isSelf ? (
+                            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontStyle: 'italic', padding: '0.25rem 0.5rem' }}>
+                              Current Admin
+                            </span>
+                          ) : (
+                            <button
+                              className={`btn btn-sm ${u.isActive ? 'btn-outline' : 'btn-primary'}`}
+                              style={{ fontSize: '0.75rem', padding: '0.25rem 0.6rem' }}
+                              onClick={() => setStatusUser(u)}
+                            >
+                              {u.isActive ? 'Deactivate' : 'Activate'}
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
               </tbody>
             </table>
           </div>
@@ -558,6 +648,18 @@ export const AdminPage = () => {
         confirmText={statusUser?.isActive ? 'Deactivate Account' : 'Activate Account'}
         danger={statusUser?.isActive}
         loading={statusActionLoading}
+      />
+
+      {/* Confirm Reject Registration Dialog */}
+      <ConfirmDialog
+        isOpen={!!rejectUser}
+        onClose={() => setRejectUser(null)}
+        onConfirm={handleConfirmReject}
+        title="Reject Registration Request"
+        message={`Are you sure you want to reject the registration request from ${rejectUser?.fullName} (${rejectUser?.email})? This action cannot be undone.`}
+        confirmText="Reject Registration"
+        danger
+        loading={actionInProgressId === rejectUser?.id}
       />
     </div>
   );

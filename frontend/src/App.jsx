@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { ThemeProvider } from './context/ThemeContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { NavigationProvider } from './context/NavigationContext';
 import { Navbar } from './components/Navbar';
 import { Sidebar } from './components/Sidebar';
 import { LoginPage } from './pages/LoginPage';
@@ -12,6 +13,7 @@ import { DocumentDetailPage } from './pages/DocumentDetailPage';
 import { UploadPage } from './pages/UploadPage';
 import { AdminPage } from './pages/AdminPage';
 import { AuditPage } from './pages/AuditPage';
+import { ProfilePage } from './pages/ProfilePage';
 import { AccessDeniedPage } from './pages/AccessDeniedPage';
 import { NotFoundPage } from './pages/NotFoundPage';
 
@@ -50,10 +52,20 @@ export function App() {
   return (
     <ThemeProvider>
       <AuthProvider>
-        <BrowserRouter>
-          <Routes>
-            <Route path="/login" element={<LoginPage />} />
-            <Route path="/register" element={<RegisterPage />} />
+        <NavigationProvider>
+          <BrowserRouter>
+            <Routes>
+              <Route path="/login" element={<LoginPage />} />
+              <Route path="/register" element={<RegisterPage />} />
+
+              <Route
+                path="/profile"
+                element={
+                  <ProtectedLayout>
+                    <ProfilePage />
+                  </ProtectedLayout>
+                }
+              />
 
             <Route
               path="/dashboard"
@@ -85,7 +97,7 @@ export function App() {
             <Route
               path="/upload"
               element={
-                <ProtectedLayout>
+                <ProtectedLayout requiredRole="OWNER">
                   <UploadPage />
                 </ProtectedLayout>
               }
@@ -114,6 +126,7 @@ export function App() {
             <Route path="*" element={<NotFoundPage />} />
           </Routes>
         </BrowserRouter>
+        </NavigationProvider>
       </AuthProvider>
     </ThemeProvider>
   );

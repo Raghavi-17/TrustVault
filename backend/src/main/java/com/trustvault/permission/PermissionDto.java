@@ -11,6 +11,7 @@ public record PermissionDto(
     String userEmail,
     PermissionLevel permission,
     String grantedByUsername,
+    Instant expiresAt,
     Instant createdAt,
     Instant updatedAt
 ) {
@@ -24,6 +25,7 @@ public record PermissionDto(
             perm.getUser().getEmail(),
             perm.getPermission(),
             perm.getGrantedBy().getUsername(),
+            perm.getExpiresAt(),
             perm.getCreatedAt(),
             perm.getUpdatedAt()
         );

@@ -48,7 +48,7 @@ public class AdminService {
 
         long totalDocuments = documentRepository.count();
         long totalUploads = auditEventRepository.countByAction(AuditEventType.DOCUMENT_UPLOAD);
-        long totalDownloads = auditEventRepository.countByAction(AuditEventType.DOCUMENT_DOWNLOAD);
+        long totalDownloads = auditEventRepository.countByActionAndOutcome(AuditEventType.DOCUMENT_DOWNLOAD, AuditOutcome.SUCCESS);
         long totalAccessDenied = auditEventRepository.countByOutcome(AuditOutcome.DENIED);
         long totalFailedLogins = auditEventRepository.countByAction(AuditEventType.LOGIN_FAILURE);
 

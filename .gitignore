@@ -24,3 +24,5 @@ storage/
 
 # Database local runtime volumes
 .postgres-data/
+.env.*
+!.env.example

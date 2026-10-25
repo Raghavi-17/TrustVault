@@ -8,9 +8,12 @@ import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+
+import java.time.Instant;
 
 @RestController
 @RequestMapping("/api/audit")
@@ -25,25 +28,29 @@ public class AuditController {
 
     @GetMapping("/events")
     @PreAuthorize("hasRole('ADMIN')")
-    @Operation(summary = "Query audit trail events with pagination (Admin only)")
+    @Operation(summary = "Query audit trail events with filtering by user, action, document, date, and outcome (Admin only)")
     public ResponseEntity<ApiResponse<Page<AuditEventDto>>> getAuditEvents(
             @RequestParam(required = false) AuditOutcome outcome,
             @RequestParam(required = false) AuditEventType action,
+            @RequestParam(required = false) String user,
+            @RequestParam(required = false) String document,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant endDate,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
 
         PageRequest pageRequest = PageRequest.of(page, size, Sort.by("timestamp").descending());
-
-        Page<AuditEvent> events;
-        if (outcome != null) {
-            events = auditService.getEventsByOutcome(outcome, pageRequest);
-        } else if (action != null) {
-            events = auditService.getEventsByAction(action, pageRequest);
-        } else {
-            events = auditService.getEvents(pageRequest);
-        }
+        Page<AuditEvent> events = auditService.getFilteredEvents(outcome, action, user, document, startDate, endDate, pageRequest);
 
         return ResponseEntity.ok(ApiResponse.ok(events.map(AuditEventDto::fromEntity)));
+    }
+
+    @GetMapping("/verify")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Verify cryptographic SHA-256 hash chain integrity of the entire audit trail (Read-only)")
+    public ResponseEntity<ApiResponse<AuditVerificationResultDto>> getChainIntegrity() {
+        AuditVerificationResultDto result = auditService.verifyIntegrity();
+        return ResponseEntity.ok(ApiResponse.ok("Audit integrity verification completed", result));
     }
 
     @PostMapping("/verify")
@@ -67,7 +74,7 @@ public class AuditController {
                 clientIp,
                 userAgent,
                 null,
-                "Verified audit trail: valid=" + result.isChainValid() + ", blocks=" + result.totalEventsChecked()
+                "Verified audit trail: status=" + result.status() + ", valid=" + result.isChainValid() + ", blocks=" + result.totalEventsChecked()
         );
 
         return ResponseEntity.ok(ApiResponse.ok("Audit integrity verification completed", result));

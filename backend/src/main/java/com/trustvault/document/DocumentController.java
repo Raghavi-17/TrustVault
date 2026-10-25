@@ -141,6 +141,28 @@ public class DocumentController {
                 .body(payload.resource());
     }
 
+    @GetMapping("/documents/{id}/preview")
+    @Operation(summary = "Preview private document content in-browser (authorized VIEW, READ, EDIT, or OWNER required)")
+    public ResponseEntity<Resource> previewDocument(
+            @PathVariable String id,
+            HttpServletRequest request) {
+
+        String userId = SecurityUtils.getCurrentUserId();
+        String clientIp = SecurityUtils.getClientIp(request);
+        String userAgent = request.getHeader("User-Agent");
+
+        DocumentService.DownloadPayload payload = documentService.previewDocument(id, userId, clientIp, userAgent);
+
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(payload.mimeType()))
+                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + payload.filename() + "\"")
+                .header(HttpHeaders.CONTENT_LENGTH, String.valueOf(payload.fileSize()))
+                .header(HttpHeaders.CACHE_CONTROL, "no-cache, no-store, must-revalidate")
+                .header(HttpHeaders.PRAGMA, "no-cache")
+                .header("X-Content-Type-Options", "nosniff")
+                .body(payload.resource());
+    }
+
     @PutMapping("/documents/{id}")
     @Operation(summary = "Update document metadata (requires EDIT or OWNER)")
     public ResponseEntity<ApiResponse<DocumentDto>> updateMetadata(
@@ -194,8 +216,16 @@ public class DocumentController {
     @PostMapping("/categories")
     @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Create document category (Admin only)")
-    public ResponseEntity<ApiResponse<CategoryDto>> createCategory(@RequestParam String name, @RequestParam(required = false) String description) {
-        CategoryDto created = documentService.createCategory(name, description);
+    public ResponseEntity<ApiResponse<CategoryDto>> createCategory(
+            @RequestParam String name,
+            @RequestParam(required = false) String description,
+            HttpServletRequest request) {
+        String actorId = SecurityUtils.getCurrentUserId();
+        String actorUsername = SecurityUtils.getCurrentUsername();
+        String clientIp = SecurityUtils.getClientIp(request);
+        String userAgent = request.getHeader("User-Agent");
+
+        CategoryDto created = documentService.createCategory(name, description, actorId, actorUsername, clientIp, userAgent);
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.ok("Category created successfully", created));
     }
 }

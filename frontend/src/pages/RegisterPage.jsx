@@ -132,12 +132,12 @@ export const RegisterPage = () => {
                 style={{
                   width: '64px',
                   height: '64px',
-                  backgroundColor: 'rgba(56, 102, 65, 0.12)',
+                  backgroundColor: 'var(--status-success-bg)',
                   borderRadius: '50%',
                   display: 'inline-flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  color: 'var(--status-active)',
+                  color: 'var(--status-success)',
                   marginBottom: '1.25rem',
                 }}
               >
@@ -341,7 +341,7 @@ export const RegisterPage = () => {
                 <Link
                   to="/login"
                   style={{
-                    color: 'var(--brand-primary)',
+                    color: 'var(--brand-highlight)',
                     fontWeight: 600,
                     textDecoration: 'none',
                     display: 'inline-flex',

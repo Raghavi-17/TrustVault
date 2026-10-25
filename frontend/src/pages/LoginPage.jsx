@@ -85,7 +85,7 @@ export const LoginPage = () => {
             <div
               className="alert"
               style={{
-                backgroundColor: 'rgba(56, 102, 65, 0.1)',
+                backgroundColor: 'var(--brand-light)',
                 color: 'var(--brand-primary)',
                 border: '1px solid var(--brand-primary)',
                 marginBottom: '1.25rem',
@@ -189,7 +189,7 @@ export const LoginPage = () => {
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.75rem' }}>
-              <Sparkles size={14} style={{ color: 'var(--brand-primary)' }} />
+              <Sparkles size={14} style={{ color: 'var(--brand-highlight)' }} />
               <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
                 Demo Accounts (Click to quick-fill)
               </span>

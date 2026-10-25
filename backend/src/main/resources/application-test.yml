@@ -18,3 +18,7 @@ trustvault:
     type: local
     local-dir: ./target/test-storage/documents
     max-file-size-bytes: 15728640
+  audit:
+    checkpoint-dir: ./target/test-storage/checkpoints
+    checkpoint-interval: 25
+

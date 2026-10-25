@@ -175,7 +175,7 @@ public class DocumentService {
 
     @Transactional(readOnly = true)
     public DownloadPayload downloadDocument(String documentId, String userId, String clientIp, String userAgent) {
-        Document doc = authorizationService.authorizeRead(documentId, userId, clientIp, userAgent);
+        Document doc = authorizationService.authorizeDownload(documentId, userId, clientIp, userAgent);
         Resource resource = storageService.loadAsResource(doc.getStorageKey());
 
         auditService.recordEvent(
@@ -189,6 +189,27 @@ public class DocumentService {
                 userAgent,
                 null,
                 "Downloaded document: " + doc.getTitle() + " (" + doc.getOriginalFilename() + ")"
+        );
+
+        return new DownloadPayload(resource, doc.getOriginalFilename(), doc.getMimeType(), doc.getFileSizeBytes());
+    }
+
+    @Transactional(readOnly = true)
+    public DownloadPayload previewDocument(String documentId, String userId, String clientIp, String userAgent) {
+        Document doc = authorizationService.authorizePreview(documentId, userId, clientIp, userAgent);
+        Resource resource = storageService.loadAsResource(doc.getStorageKey());
+
+        auditService.recordEvent(
+                userId,
+                authorizationService.checkActiveUser(userId).getUsername(),
+                AuditEventType.DOCUMENT_READ,
+                "DOCUMENT",
+                documentId,
+                AuditOutcome.SUCCESS,
+                clientIp,
+                userAgent,
+                null,
+                "Previewed document in-browser: " + doc.getTitle() + " (" + doc.getOriginalFilename() + ")"
         );
 
         return new DownloadPayload(resource, doc.getOriginalFilename(), doc.getMimeType(), doc.getFileSizeBytes());
@@ -305,13 +326,32 @@ public class DocumentService {
     }
 
     @Transactional
-    public CategoryDto createCategory(String name, String description) {
+    public CategoryDto createCategory(String name, String description, String actorId, String actorUsername, String clientIp, String userAgent) {
         if (categoryRepository.existsByName(name)) {
             throw new BadRequestException("Category with name '" + name + "' already exists");
         }
         Category category = new Category(name, description);
         Category saved = categoryRepository.save(category);
+
+        auditService.recordEvent(
+                actorId,
+                actorUsername,
+                AuditEventType.CATEGORY_CREATE,
+                "CATEGORY",
+                saved.getId(),
+                AuditOutcome.SUCCESS,
+                clientIp,
+                userAgent,
+                null,
+                "Created document category: '" + saved.getName() + "'"
+        );
+
         return CategoryDto.fromEntity(saved);
+    }
+
+    @Transactional
+    public CategoryDto createCategory(String name, String description) {
+        return createCategory(name, description, null, "ADMIN", null, null);
     }
 
     public record DownloadPayload(Resource resource, String filename, String mimeType, long fileSize) {}

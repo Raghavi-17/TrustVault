@@ -140,18 +140,18 @@ export const UploadPage = () => {
                 <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
                   {(file.size / 1024).toFixed(1)} KB — Ready to upload
                 </div>
-                <span style={{ fontSize: '0.75rem', color: 'var(--brand-primary)', textDecoration: 'underline', marginTop: '0.25rem' }}>
+                <span style={{ fontSize: '0.75rem', color: 'var(--brand-highlight)', textDecoration: 'underline', marginTop: '0.25rem' }}>
                   Click or drag to choose a different file
                 </span>
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem' }}>
-                <UploadCloud size={40} style={{ color: 'var(--brand-primary)' }} />
+                <UploadCloud size={40} style={{ color: 'var(--brand-highlight)' }} />
                 <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
                   Choose a file or drag & drop it here
                 </div>
                 <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                  Supported formats: PDF, DOCX, TXT, CSV, XLSX, PNG, JPG (Max 15MB)
+                  Supported formats: PDF, DOCX, DOC, TXT, CSV, XLSX, XLS, PNG, JPG, JPEG, MD (Max 15MB)
                 </div>
               </div>
             )}
@@ -235,7 +235,7 @@ export const UploadPage = () => {
               className="btn btn-primary"
               disabled={loading || !file}
             >
-              {loading ? 'Encrypting & Uploading...' : 'Upload & Encrypt'}
+              {loading ? 'Validating & Uploading...' : 'Upload Document'}
             </button>
           </div>
         </form>

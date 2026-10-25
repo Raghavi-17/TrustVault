@@ -111,7 +111,10 @@ public class UserService {
             throw new BadRequestException("User account is not pending approval (current status: " + user.getStatus() + ")");
         }
 
-        if (assignedRole != null && assignedRole != Role.ADMIN) {
+        if (assignedRole == Role.ADMIN) {
+            throw new BadRequestException("Administrator privileges cannot be granted via registration approval. Administrators must be provisioned via the secure bootstrap configuration.");
+        }
+        if (assignedRole != null) {
             user.setRole(assignedRole);
         }
         user.setStatus(UserStatus.ACTIVE);

@@ -3,7 +3,7 @@ import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { Link } from 'react-router-dom';
 import { 
-  FileText, Search, Filter, Download, ExternalLink, Share2, 
+  FileText, Search, Filter, Download, ExternalLink, Eye, Share2, 
   Trash2, Edit, RefreshCw, UploadCloud, ChevronLeft, ChevronRight,
   Shield, Check, AlertCircle
 } from 'lucide-react';
@@ -22,9 +22,14 @@ export const DocumentsPage = () => {
   const [currentPage, setCurrentPage] = useState(0);
   const [totalElements, setTotalElements] = useState(0);
 
+  // Download & action status
+  const [actionError, setActionError] = useState('');
+  const [downloadingId, setDownloadingId] = useState(null);
+
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
+  const [accessFilter, setAccessFilter] = useState('ALL');
   const [sortBy, setSortBy] = useState('createdAt');
   const [direction, setDirection] = useState('desc');
 
@@ -36,6 +41,10 @@ export const DocumentsPage = () => {
   const [sharePermissionLevel, setSharePermissionLevel] = useState('READ');
   const [shareLoading, setShareLoading] = useState(false);
   const [shareFeedback, setShareFeedback] = useState({ type: '', message: '' });
+
+  // Revoke permission confirmation state
+  const [revokeTargetUser, setRevokeTargetUser] = useState(null);
+  const [revokeLoading, setRevokeLoading] = useState(false);
 
   // Edit metadata modal
   const [editModalDoc, setEditModalDoc] = useState(null);
@@ -159,13 +168,18 @@ export const DocumentsPage = () => {
     }
   };
 
-  const handleRevokePermission = async (targetUserId) => {
+  const handleConfirmRevoke = async () => {
+    if (!revokeTargetUser) return;
+    setRevokeLoading(true);
     try {
-      await api.delete(`/documents/${shareModalDoc.id}/permissions/${targetUserId}`);
-      setActivePermissions((prev) => prev.filter((p) => p.userId !== targetUserId));
-      setShareFeedback({ type: 'success', message: 'Access revoked immediately' });
+      await api.delete(`/documents/${shareModalDoc.id}/permissions/${revokeTargetUser.userId}`);
+      setActivePermissions((prev) => prev.filter((p) => p.userId !== revokeTargetUser.userId));
+      setShareFeedback({ type: 'success', message: `Access for ${revokeTargetUser.userFullName || revokeTargetUser.username} revoked immediately` });
+      setRevokeTargetUser(null);
     } catch (err) {
       setShareFeedback({ type: 'error', message: err.message || 'Failed to revoke access' });
+    } finally {
+      setRevokeLoading(false);
     }
   };
 
@@ -225,11 +239,26 @@ export const DocumentsPage = () => {
     }
   };
 
+  const handleDownload = async (doc) => {
+    try {
+      setActionError('');
+      setDownloadingId(doc.id);
+      await api.download(doc.id, doc.originalFilename);
+    } catch (err) {
+      console.error('Download failed:', err);
+      setActionError(err.message || 'Download failed: Access denied or document file missing');
+    } finally {
+      setDownloadingId(null);
+    }
+  };
+
   const getPermBadge = (perm) => {
     switch (perm) {
       case 'OWNER': return <Badge variant="success">OWNER</Badge>;
       case 'EDIT': return <Badge variant="warning">EDIT</Badge>;
+      case 'DOWNLOAD': return <Badge variant="primary">DOWNLOAD</Badge>;
       case 'READ': return <Badge variant="info">READ</Badge>;
+      case 'VIEW': return <Badge variant="neutral">VIEW</Badge>;
       default: return <Badge variant="neutral">NONE</Badge>;
     }
   };
@@ -239,7 +268,7 @@ export const DocumentsPage = () => {
       <div className="flex-between" style={{ marginBottom: '1.75rem', flexWrap: 'wrap', gap: '1rem' }}>
         <div>
           <h1>Authorized Documents</h1>
-          <p>Browse, inspect, download, and manage permissions on encrypted documents</p>
+          <p>Browse, inspect, download, and manage permissions on authorized secure documents</p>
         </div>
         {(isOwner || isAdmin) && (
           <Link to="/upload" className="btn btn-primary">
@@ -251,7 +280,7 @@ export const DocumentsPage = () => {
 
       {/* Search & Filter Bar */}
       <div className="card" style={{ marginBottom: '1.5rem', padding: '1.25rem' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', alignItems: 'center' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1rem', alignItems: 'center' }}>
           <div style={{ position: 'relative' }}>
             <input
               type="text"
@@ -274,6 +303,18 @@ export const DocumentsPage = () => {
                 color: 'var(--text-muted)',
               }}
             />
+          </div>
+
+          <div>
+            <select
+              className="form-select"
+              value={accessFilter}
+              onChange={(e) => setAccessFilter(e.target.value)}
+            >
+              <option value="ALL">All Access Levels</option>
+              <option value="OWNED">Owned by Me</option>
+              <option value="SHARED">Shared with Me</option>
+            </select>
           </div>
 
           <div>
@@ -315,6 +356,24 @@ export const DocumentsPage = () => {
         </div>
       </div>
 
+      {/* Action Feedback Banner */}
+      {actionError && (
+        <div className="alert alert-error" style={{ marginBottom: '1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <AlertCircle size={16} />
+            <span>{actionError}</span>
+          </div>
+          <button
+            type="button"
+            className="btn btn-outline btn-sm"
+            onClick={() => setActionError('')}
+            style={{ padding: '0.15rem 0.5rem', fontSize: '0.75rem' }}
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
       {/* Documents Table */}
       <div className="card">
         {loading ? (
@@ -325,11 +384,17 @@ export const DocumentsPage = () => {
           <div style={{ padding: '3.5rem 1rem', textAlign: 'center' }}>
             <FileText size={44} style={{ color: 'var(--text-muted)', marginBottom: '0.75rem' }} />
             <h3>No matching documents found</h3>
-            <p style={{ marginTop: '0.25rem' }}>
-              {searchQuery || selectedCategory
-                ? 'Try adjusting your search criteria or category filter.'
-                : 'Your vault is currently empty.'}
+            <p style={{ marginTop: '0.25rem', color: 'var(--text-secondary)' }}>
+              {searchQuery || selectedCategory || accessFilter !== 'ALL'
+                ? 'Try adjusting your search criteria, category filter, or access view.'
+                : 'Your secure vault is currently empty.'}
             </p>
+            {(isOwner || isAdmin) && !searchQuery && !selectedCategory && accessFilter === 'ALL' && (
+              <Link to="/upload" className="btn btn-primary btn-sm" style={{ marginTop: '1rem', display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
+                <UploadCloud size={14} />
+                <span>Upload Document</span>
+              </Link>
+            )}
           </div>
         ) : (
           <div className="table-responsive">
@@ -342,57 +407,97 @@ export const DocumentsPage = () => {
                   <th>Size</th>
                   <th>Version</th>
                   <th>Permission</th>
-                  <th>Updated</th>
+                  <th>Uploaded & Updated</th>
                   <th style={{ textAlign: 'right' }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {documents.map((doc) => {
-                  const canEdit = doc.effectivePermission === 'OWNER' || doc.effectivePermission === 'EDIT';
-                  const isDocOwner = doc.effectivePermission === 'OWNER';
+                {documents
+                  .filter((doc) => {
+                    const isDocOwner = doc.ownerId === user?.id || doc.effectivePermission === 'OWNER';
+                    if (accessFilter === 'OWNED') return isDocOwner;
+                    if (accessFilter === 'SHARED') return !isDocOwner;
+                    return true;
+                  })
+                  .map((doc) => {
+                    const canEdit = doc.effectivePermission === 'OWNER' || doc.effectivePermission === 'EDIT';
+                    const isDocOwner = doc.ownerId === user?.id || doc.effectivePermission === 'OWNER';
+                    const canDownload = doc.effectivePermission !== 'VIEW';
 
-                  return (
-                    <tr key={doc.id}>
-                      <td>
-                        <Link
-                          to={`/documents/${doc.id}`}
-                          style={{ fontWeight: 600, color: 'var(--text-primary)', textDecoration: 'none' }}
-                        >
-                          {doc.title}
-                        </Link>
-                        <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                          {doc.originalFilename}
-                        </div>
-                      </td>
-                      <td>
-                        <Badge variant="neutral">{doc.category?.name || 'General'}</Badge>
-                      </td>
-                      <td>{doc.ownerUsername}</td>
-                      <td>{formatFileSize(doc.fileSizeBytes)}</td>
-                      <td>
-                        <span className="badge badge-neutral">v{doc.version}</span>
-                      </td>
-                      <td>{getPermBadge(doc.effectivePermission)}</td>
-                      <td style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                        {new Date(doc.updatedAt).toLocaleDateString()}
-                      </td>
-                      <td style={{ textAlign: 'right' }}>
-                        <div style={{ display: 'inline-flex', gap: '0.4rem' }}>
-                          <button
-                            className="btn btn-secondary btn-sm"
-                            onClick={() => api.download(doc.id, doc.originalFilename)}
-                            title="Download file"
+                    return (
+                      <tr key={doc.id}>
+                        <td>
+                          <Link
+                            to={`/documents/${doc.id}`}
+                            style={{ fontWeight: 600, color: 'var(--text-primary)', textDecoration: 'none' }}
                           >
-                            <Download size={14} />
-                          </button>
-                          
+                            {doc.title}
+                          </Link>
+                          <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '0.45rem', marginTop: '0.15rem' }}>
+                            <span>{doc.originalFilename}</span>
+                            <span
+                              style={{
+                                fontSize: '0.68rem',
+                                padding: '0.1rem 0.35rem',
+                                borderRadius: 'var(--radius-sm)',
+                                backgroundColor: isDocOwner ? 'var(--status-success-bg)' : 'var(--status-info-bg)',
+                                color: isDocOwner ? 'var(--status-success)' : 'var(--status-info)',
+                                fontWeight: 600,
+                              }}
+                            >
+                              {isDocOwner ? 'Owned' : 'Shared with you'}
+                            </span>
+                          </div>
+                        </td>
+                        <td>
+                          <Badge variant="neutral">{doc.category?.name || 'General'}</Badge>
+                        </td>
+                        <td>{doc.ownerUsername}</td>
+                        <td>{formatFileSize(doc.fileSizeBytes)}</td>
+                        <td>
+                          <span className="badge badge-neutral">v{doc.version}</span>
+                        </td>
+                        <td>{getPermBadge(doc.effectivePermission)}</td>
+                        <td style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                          <div>{new Date(doc.createdAt).toLocaleDateString()}</div>
+                          <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Updated {new Date(doc.updatedAt).toLocaleDateString()}</div>
+                        </td>
+                        <td style={{ textAlign: 'right' }}>
+                        <div style={{ display: 'inline-flex', gap: '0.4rem', alignItems: 'center' }}>
+                          {/* Secure View Action: Opens document in existing secure viewing flow */}
                           <Link
                             to={`/documents/${doc.id}`}
                             className="btn btn-outline btn-sm"
-                            title="View details & SHA-256 fingerprint"
+                            title="View document details & cryptographic fingerprint"
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
                           >
-                            <ExternalLink size={14} />
+                            <Eye size={14} />
+                            <span>View</span>
                           </Link>
+
+                          {/* Secure Download Action: Permitted for OWNER, EDIT, DOWNLOAD, READ */}
+                          {canDownload ? (
+                            <button
+                              className="btn btn-secondary btn-sm"
+                              onClick={() => handleDownload(doc)}
+                              disabled={downloadingId === doc.id}
+                              title={`Download ${doc.originalFilename}`}
+                              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+                            >
+                              <Download size={14} />
+                              <span>{downloadingId === doc.id ? 'Downloading...' : 'Download'}</span>
+                            </button>
+                          ) : (
+                            <button
+                              className="btn btn-secondary btn-sm"
+                              disabled
+                              style={{ opacity: 0.45, cursor: 'not-allowed', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+                              title="Download restricted: VIEW permission only"
+                            >
+                              <Download size={14} />
+                              <span>Download</span>
+                            </button>
+                          )}
 
                           {isDocOwner && (
                             <button
@@ -480,7 +585,7 @@ export const DocumentsPage = () => {
       >
         <div>
           <p style={{ marginBottom: '1.25rem', fontSize: '0.88rem' }}>
-            Grant READ or EDIT access to registered users. Revocation takes effect immediately.
+            Grant VIEW, DOWNLOAD, READ, or EDIT access to registered users. Revocation takes effect immediately.
           </p>
 
           {shareFeedback.message && (
@@ -519,8 +624,10 @@ export const DocumentsPage = () => {
                   value={sharePermissionLevel}
                   onChange={(e) => setSharePermissionLevel(e.target.value)}
                 >
-                  <option value="READ">READ</option>
-                  <option value="EDIT">EDIT</option>
+                  <option value="VIEW">VIEW (Details only, no download)</option>
+                  <option value="DOWNLOAD">DOWNLOAD (View & download)</option>
+                  <option value="EDIT">EDIT (View, download & edit)</option>
+                  <option value="READ">READ (Legacy view & download)</option>
                 </select>
               </div>
 
@@ -554,7 +661,7 @@ export const DocumentsPage = () => {
                         <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>@{perm.username}</div>
                       </td>
                       <td>
-                        <Badge variant={perm.permission === 'EDIT' ? 'warning' : 'info'}>
+                        <Badge variant={perm.permission === 'EDIT' ? 'warning' : perm.permission === 'DOWNLOAD' ? 'primary' : perm.permission === 'VIEW' ? 'neutral' : 'info'}>
                           {perm.permission}
                         </Badge>
                       </td>
@@ -562,7 +669,7 @@ export const DocumentsPage = () => {
                         <button
                           className="btn btn-danger btn-sm"
                           style={{ padding: '0.2rem 0.5rem', fontSize: '0.75rem' }}
-                          onClick={() => handleRevokePermission(perm.userId)}
+                          onClick={() => setRevokeTargetUser(perm)}
                         >
                           Revoke
                         </button>
@@ -689,6 +796,18 @@ export const DocumentsPage = () => {
         message={`Are you sure you want to permanently delete "${deleteModalDoc?.title}"? This will remove the file from secure storage and revoke all permissions. This action cannot be undone.`}
         confirmText="Permanently Delete"
         danger
+      />
+
+      {/* Revoke Access Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={!!revokeTargetUser}
+        onClose={() => setRevokeTargetUser(null)}
+        onConfirm={handleConfirmRevoke}
+        title="Revoke Document Access"
+        message={`Are you sure you want to revoke access for ${revokeTargetUser?.userFullName || revokeTargetUser?.username}? They will immediately lose access to "${shareModalDoc?.title}".`}
+        confirmText="Revoke Access"
+        danger
+        loading={revokeLoading}
       />
     </div>
   );

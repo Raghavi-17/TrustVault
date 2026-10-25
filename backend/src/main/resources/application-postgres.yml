@@ -2,7 +2,7 @@ spring:
   datasource:
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/trustvault}
     username: ${SPRING_DATASOURCE_USERNAME:trustvault}
-    password: ${SPRING_DATASOURCE_PASSWORD:trustvault_dev_password}
+    password: ${SPRING_DATASOURCE_PASSWORD}
     driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:
@@ -10,6 +10,9 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
+        schema_management:
+          check_constraint:
+            disable: true
   flyway:
     enabled: true
     baseline-on-migrate: true

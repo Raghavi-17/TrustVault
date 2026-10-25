@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS users (
     full_name VARCHAR(100) NOT NULL,
     email VARCHAR(100) NOT NULL UNIQUE,
     role VARCHAR(20) NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE',
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
     failed_login_attempts INT NOT NULL DEFAULT 0,
     locked_until TIMESTAMP,
@@ -21,6 +22,7 @@ CREATE TABLE IF NOT EXISTS users (
 
 CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
 CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);
+CREATE INDEX IF NOT EXISTS idx_users_status ON users(status);
 CREATE INDEX IF NOT EXISTS idx_users_active ON users(is_active);
 
 -- 2. CATEGORIES TABLE

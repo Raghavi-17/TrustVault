@@ -8,7 +8,7 @@ export const ThemeToggle = () => {
   return (
     <button
       onClick={toggleTheme}
-      className="btn btn-secondary btn-sm"
+      className="btn btn-nav btn-sm"
       style={{
         borderRadius: '9999px',
         padding: '0.45rem',
@@ -22,9 +22,9 @@ export const ThemeToggle = () => {
       aria-label={`Switch to ${isDark ? 'light' : 'dark'} mode`}
     >
       {isDark ? (
-        <Sun size={18} style={{ color: '#FBBF24' }} />
+        <Sun size={18} style={{ color: 'var(--brand-highlight)' }} />
       ) : (
-        <Moon size={18} style={{ color: '#4CAF7D' }} />
+        <Moon size={18} style={{ color: 'var(--brand-primary)' }} />
       )}
     </button>
   );

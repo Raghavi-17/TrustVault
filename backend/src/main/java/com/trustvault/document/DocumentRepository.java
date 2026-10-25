@@ -14,11 +14,11 @@ import java.util.Optional;
 public interface DocumentRepository extends JpaRepository<Document, String> {
 
     @Query("SELECT d FROM Document d WHERE d.owner.id = :userId " +
-           "OR d.id IN (SELECT p.document.id FROM DocumentPermission p WHERE p.user.id = :userId)")
+           "OR d.id IN (SELECT p.document.id FROM DocumentPermission p WHERE p.user.id = :userId AND (p.expiresAt IS NULL OR p.expiresAt > CURRENT_TIMESTAMP))")
     Page<Document> findAccessibleDocuments(@Param("userId") String userId, Pageable pageable);
 
     @Query("SELECT d FROM Document d WHERE (d.owner.id = :userId " +
-           "OR d.id IN (SELECT p.document.id FROM DocumentPermission p WHERE p.user.id = :userId)) " +
+           "OR d.id IN (SELECT p.document.id FROM DocumentPermission p WHERE p.user.id = :userId AND (p.expiresAt IS NULL OR p.expiresAt > CURRENT_TIMESTAMP))) " +
            "AND (:title IS NULL OR LOWER(d.title) LIKE LOWER(CONCAT('%', :title, '%'))) " +
            "AND (:categoryId IS NULL OR d.category.id = :categoryId) " +
            "AND (:ownerId IS NULL OR d.owner.id = :ownerId) " +

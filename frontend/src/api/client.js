@@ -8,6 +8,14 @@ function getCookie(name) {
   return match ? decodeURIComponent(match[3]) : null;
 }
 
+let inMemoryCsrfToken = null;
+
+export function setCsrfToken(token) {
+  if (token) {
+    inMemoryCsrfToken = token;
+  }
+}
+
 /**
  * Reusable secure HTTP request helper
  */
@@ -25,9 +33,9 @@ async function request(endpoint, options = {}) {
 
   // Attach CSRF token if state-changing request
   if (['POST', 'PUT', 'DELETE', 'PATCH'].includes((options.method || 'GET').toUpperCase())) {
-    const xsrfCookie = getCookie('XSRF-TOKEN');
-    if (xsrfCookie) {
-      headers['X-XSRF-TOKEN'] = xsrfCookie;
+    const token = getCookie('XSRF-TOKEN') || inMemoryCsrfToken;
+    if (token) {
+      headers['X-XSRF-TOKEN'] = token;
     }
   }
 
@@ -39,11 +47,20 @@ async function request(endpoint, options = {}) {
 
   const response = await fetch(url, config);
 
-  // If download endpoint, return blob directly
+  // If blob response requested (download or preview), return blob directly
   if (options.responseType === 'blob') {
     if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(errorText || 'Failed to download file');
+      let errorMessage = 'Failed to retrieve file resource';
+      try {
+        const errorText = await response.text();
+        const json = JSON.parse(errorText);
+        errorMessage = json.message || json.error || errorText;
+      } catch (e) {
+        // use fallback or raw text
+      }
+      const error = new Error(errorMessage);
+      error.status = response.status;
+      throw error;
     }
     return response.blob();
   }
@@ -81,6 +98,11 @@ export const api = {
       method: 'POST',
       body: formData,
     });
+  },
+
+  // Dedicated helper for in-browser document preview blob
+  preview: async (documentId) => {
+    return request(`/documents/${documentId}/preview`, { responseType: 'blob' });
   },
 
   // Dedicated helper for file downloads

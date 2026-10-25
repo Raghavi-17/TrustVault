@@ -4,7 +4,8 @@ import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { 
   ArrowLeft, Download, Share2, Edit, RefreshCw, Trash2, 
-  Copy, Check, Shield, FileText, Clock, User, HardDrive, Tag
+  Copy, Check, Shield, FileText, Clock, User, HardDrive, Tag,
+  Eye, AlertCircle
 } from 'lucide-react';
 import { Badge } from '../components/Badge';
 import { Modal } from '../components/Modal';
@@ -32,6 +33,10 @@ export const DocumentDetailPage = () => {
   // Delete state
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
 
+  // Revoke confirmation state
+  const [revokeTargetUser, setRevokeTargetUser] = useState(null);
+  const [revokeLoading, setRevokeLoading] = useState(false);
+
   // Edit metadata state
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editTitle, setEditTitle] = useState('');
@@ -47,11 +52,24 @@ export const DocumentDetailPage = () => {
   const [replaceLoading, setReplaceLoading] = useState(false);
   const [replaceError, setReplaceError] = useState('');
 
+  // In-browser PDF Preview state
+  const [previewUrl, setPreviewUrl] = useState(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewError, setPreviewError] = useState('');
+
   useEffect(() => {
     fetchDoc();
     fetchCategories();
     fetchUsers();
   }, [id]);
+
+  useEffect(() => {
+    return () => {
+      if (previewUrl) {
+        URL.revokeObjectURL(previewUrl);
+      }
+    };
+  }, [previewUrl]);
 
   const fetchDoc = async () => {
     try {
@@ -63,11 +81,29 @@ export const DocumentDetailPage = () => {
         if (res.data.effectivePermission === 'OWNER') {
           fetchPermissions();
         }
+        fetchPreview();
       }
     } catch (err) {
       setError(err.message || 'Failed to load document details or access denied');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchPreview = async () => {
+    try {
+      setPreviewLoading(true);
+      setPreviewError('');
+      const blob = await api.preview(id);
+      const url = URL.createObjectURL(blob);
+      setPreviewUrl((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return url;
+      });
+    } catch (err) {
+      setPreviewError(err.message || 'Failed to load document preview');
+    } finally {
+      setPreviewLoading(false);
     }
   };
 
@@ -121,12 +157,17 @@ export const DocumentDetailPage = () => {
     }
   };
 
-  const handleRevoke = async (targetUserId) => {
+  const handleConfirmRevoke = async () => {
+    if (!revokeTargetUser) return;
+    setRevokeLoading(true);
     try {
-      await api.delete(`/documents/${id}/permissions/${targetUserId}`);
-      setPermissions((prev) => prev.filter((p) => p.userId !== targetUserId));
+      await api.delete(`/documents/${id}/permissions/${revokeTargetUser.userId}`);
+      setPermissions((prev) => prev.filter((p) => p.userId !== revokeTargetUser.userId));
+      setRevokeTargetUser(null);
     } catch (err) {
       alert(err.message || 'Failed to revoke permission');
+    } finally {
+      setRevokeLoading(false);
     }
   };
 
@@ -211,6 +252,7 @@ export const DocumentDetailPage = () => {
 
   const isDocOwner = document.effectivePermission === 'OWNER';
   const canEdit = isDocOwner || document.effectivePermission === 'EDIT';
+  const isPdf = document?.mimeType === 'application/pdf' || document?.originalFilename?.toLowerCase().endsWith('.pdf');
 
   return (
     <div className="page-body">
@@ -232,13 +274,25 @@ export const DocumentDetailPage = () => {
           </div>
 
           <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-            <button
-              className="btn btn-primary"
-              onClick={() => api.download(document.id, document.originalFilename)}
-            >
-              <Download size={16} />
-              <span>Download File</span>
-            </button>
+            {document.effectivePermission !== 'VIEW' ? (
+              <button
+                className="btn btn-primary"
+                onClick={() => api.download(document.id, document.originalFilename)}
+              >
+                <Download size={16} />
+                <span>Download File</span>
+              </button>
+            ) : (
+              <button
+                className="btn btn-secondary"
+                disabled
+                style={{ opacity: 0.5, cursor: 'not-allowed' }}
+                title="Download restricted (VIEW-only permission)"
+              >
+                <Download size={16} />
+                <span>Download Restricted (VIEW Only)</span>
+              </button>
+            )}
 
             {isDocOwner && (
               <button className="btn btn-secondary" onClick={() => setIsShareOpen(true)}>
@@ -278,6 +332,84 @@ export const DocumentDetailPage = () => {
             )}
           </div>
         </div>
+      </div>
+
+      {/* Secure In-Browser Document Content Preview */}
+      <div className="card" style={{ marginBottom: '1.5rem', padding: '1.25rem' }}>
+        <div className="flex-between" style={{ marginBottom: '1rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.6rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <Eye size={18} style={{ color: 'var(--brand-highlight)' }} />
+            <h3 style={{ margin: 0, fontSize: '1.05rem' }}>Document Content Preview</h3>
+            <span className="badge badge-neutral" style={{ fontSize: '0.72rem' }}>
+              {isPdf ? 'Interactive PDF Viewer' : document.mimeType}
+            </span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            {document.effectivePermission === 'VIEW' && (
+              <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
+                <Shield size={14} style={{ color: 'var(--brand-highlight)' }} />
+                <span>Protected In-Browser Preview (VIEW Only)</span>
+              </span>
+            )}
+            <button
+              type="button"
+              className="btn btn-outline btn-sm"
+              onClick={fetchPreview}
+              disabled={previewLoading}
+              title="Reload document preview"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', padding: '0.2rem 0.6rem', fontSize: '0.78rem' }}
+            >
+              <RefreshCw size={12} className={previewLoading ? 'spin' : ''} />
+              <span>Reload</span>
+            </button>
+          </div>
+        </div>
+
+        {previewLoading ? (
+          <div style={{ padding: '4.5rem 1rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
+            <RefreshCw size={28} className="spin" style={{ color: 'var(--brand-highlight)', marginBottom: '0.75rem' }} />
+            <p style={{ margin: 0, fontSize: '0.9rem' }}>Retrieving encrypted document content for secure preview...</p>
+          </div>
+        ) : previewError ? (
+          <div style={{ padding: '2.5rem 1.5rem', textAlign: 'center', background: 'var(--bg-surface)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-color)' }}>
+            <AlertCircle size={32} style={{ color: 'var(--status-error)', marginBottom: '0.75rem' }} />
+            <h4 style={{ margin: '0 0 0.5rem 0' }}>Preview Unavailable</h4>
+            <p style={{ margin: '0 0 1rem 0', color: 'var(--text-secondary)', fontSize: '0.88rem' }}>
+              {previewError}
+            </p>
+            <button type="button" className="btn btn-secondary btn-sm" onClick={fetchPreview}>
+              Retry Preview
+            </button>
+          </div>
+        ) : !isPdf ? (
+          <div style={{ padding: '3rem 1.5rem', textAlign: 'center', background: 'var(--bg-surface)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-color)' }}>
+            <FileText size={36} style={{ color: 'var(--text-muted)', marginBottom: '0.75rem' }} />
+            <h4 style={{ margin: '0 0 0.5rem 0' }}>Preview Format Notice</h4>
+            <p style={{ margin: '0 0 1.25rem 0', color: 'var(--text-secondary)', fontSize: '0.88rem' }}>
+              In-browser preview is currently optimized for PDF documents. The current file format is <code>{document.mimeType}</code>.
+            </p>
+            {document.effectivePermission !== 'VIEW' && (
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                onClick={() => api.download(document.id, document.originalFilename)}
+              >
+                <Download size={14} />
+                <span>Download to View Original File</span>
+              </button>
+            )}
+          </div>
+        ) : previewUrl ? (
+          <div style={{ position: 'relative', width: '100%', height: '650px', borderRadius: 'var(--radius-sm)', overflow: 'hidden', border: '1px solid var(--border-color)', background: '#525659' }}>
+            <iframe
+              src={`${previewUrl}#toolbar=0`}
+              title={`Preview of ${document.title}`}
+              width="100%"
+              height="100%"
+              style={{ border: 'none', display: 'block' }}
+            />
+          </div>
+        ) : null}
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.5rem' }}>
@@ -332,7 +464,7 @@ export const DocumentDetailPage = () => {
           {/* Cryptographic Hash Fingerprint */}
           <div className="card">
             <h3 style={{ marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <Shield size={18} style={{ color: 'var(--brand-primary)' }} />
+              <Shield size={18} style={{ color: 'var(--brand-highlight)' }} />
               <span>SHA-256 Checksum Fingerprint</span>
             </h3>
             <p style={{ fontSize: '0.82rem', marginBottom: '0.75rem' }}>
@@ -404,7 +536,7 @@ export const DocumentDetailPage = () => {
                           <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>@{p.username}</div>
                         </td>
                         <td>
-                          <Badge variant={p.permission === 'EDIT' ? 'warning' : 'info'}>
+                          <Badge variant={p.permission === 'EDIT' ? 'warning' : p.permission === 'DOWNLOAD' ? 'primary' : p.permission === 'VIEW' ? 'neutral' : 'info'}>
                             {p.permission}
                           </Badge>
                         </td>
@@ -412,7 +544,7 @@ export const DocumentDetailPage = () => {
                           <button
                             className="btn btn-danger btn-sm"
                             style={{ padding: '0.2rem 0.5rem', fontSize: '0.75rem' }}
-                            onClick={() => handleRevoke(p.userId)}
+                            onClick={() => setRevokeTargetUser(p)}
                           >
                             Revoke
                           </button>
@@ -462,8 +594,10 @@ export const DocumentDetailPage = () => {
               value={permissionLevel}
               onChange={(e) => setPermissionLevel(e.target.value)}
             >
-              <option value="READ">READ (View and download only)</option>
+              <option value="VIEW">VIEW (View metadata and details only, no download)</option>
+              <option value="DOWNLOAD">DOWNLOAD (View details and download file)</option>
               <option value="EDIT">EDIT (View, download, edit metadata, and replace content)</option>
+              <option value="READ">READ (Legacy view and download)</option>
             </select>
           </div>
 
@@ -582,6 +716,18 @@ export const DocumentDetailPage = () => {
         message={`Are you sure you want to permanently delete "${document.title}"? This action cannot be undone.`}
         confirmText="Delete Permanently"
         danger
+      />
+
+      {/* Revoke Access Confirmation */}
+      <ConfirmDialog
+        isOpen={!!revokeTargetUser}
+        onClose={() => setRevokeTargetUser(null)}
+        onConfirm={handleConfirmRevoke}
+        title="Revoke Document Access"
+        message={`Are you sure you want to revoke access for ${revokeTargetUser?.userFullName || revokeTargetUser?.username}? They will immediately lose access to this document.`}
+        confirmText="Revoke Access"
+        danger
+        loading={revokeLoading}
       />
     </div>
   );

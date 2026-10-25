@@ -39,16 +39,24 @@ public class DocumentPermission {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt = Instant.now();
 
+    @Column(name = "expires_at")
+    private Instant expiresAt;
+
     public DocumentPermission() {
         this.id = UUID.randomUUID().toString();
     }
 
     public DocumentPermission(Document document, User user, PermissionLevel permission, User grantedBy) {
+        this(document, user, permission, grantedBy, null);
+    }
+
+    public DocumentPermission(Document document, User user, PermissionLevel permission, User grantedBy, Instant expiresAt) {
         this.id = UUID.randomUUID().toString();
         this.document = document;
         this.user = user;
         this.permission = permission;
         this.grantedBy = grantedBy;
+        this.expiresAt = expiresAt;
         this.createdAt = Instant.now();
         this.updatedAt = Instant.now();
     }
@@ -123,6 +131,18 @@ public class DocumentPermission {
 
     public void setUpdatedAt(Instant updatedAt) {
         this.updatedAt = updatedAt;
+    }
+
+    public Instant getExpiresAt() {
+        return expiresAt;
+    }
+
+    public void setExpiresAt(Instant expiresAt) {
+        this.expiresAt = expiresAt;
+    }
+
+    public boolean isExpired() {
+        return this.expiresAt != null && this.expiresAt.isBefore(Instant.now());
     }
 
     @Override

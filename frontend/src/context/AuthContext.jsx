@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { api } from '../api/client';
+import { api, setCsrfToken } from '../api/client';
 
 const AuthContext = createContext();
 
@@ -13,7 +13,10 @@ export const AuthProvider = ({ children }) => {
     try {
       setLoading(true);
       // Fetch CSRF token cookie first
-      await api.get('/auth/csrf').catch(() => {});
+      const csrfRes = await api.get('/auth/csrf').catch(() => {});
+      if (csrfRes?.data?.token) {
+        setCsrfToken(csrfRes.data.token);
+      }
       const res = await api.get('/auth/me');
       if (res && res.data) {
         setUser(res.data);
@@ -33,7 +36,10 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (username, password) => {
     // Ensure fresh CSRF cookie before login
-    await api.get('/auth/csrf').catch(() => {});
+    const csrfRes = await api.get('/auth/csrf').catch(() => {});
+    if (csrfRes?.data?.token) {
+      setCsrfToken(csrfRes.data.token);
+    }
     const res = await api.post('/auth/login', { username, password });
     if (res && res.data) {
       setUser(res.data);

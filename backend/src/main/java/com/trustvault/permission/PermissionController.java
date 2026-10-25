@@ -38,7 +38,7 @@ public class PermissionController {
     }
 
     @PostMapping
-    @Operation(summary = "Grant READ or EDIT access to an existing user (Owner only)")
+    @Operation(summary = "Grant access to an existing user (Owner only)")
     public ResponseEntity<ApiResponse<PermissionDto>> grantPermission(
             @PathVariable String documentId,
             @Valid @RequestBody GrantPermissionRequest grantRequest,

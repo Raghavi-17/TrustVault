@@ -121,12 +121,36 @@ This document defines the formal threat model, asset taxonomy, trust boundaries,
   - Approvals and rejections can only be executed by authenticated administrators via server-side role check (`@PreAuthorize("hasRole('ADMIN')")`), with all actions logged into the cryptographic hash trail (`REGISTRATION_REQUEST`, `REGISTRATION_APPROVE`, `REGISTRATION_REJECT`).
 - **Verification**: Verified in `RegistrationAndApprovalWorkflowTest.testRegistrationCreatesPendingAccount`, `testPendingUserCannotLogin`, `testAdminApprovalAllowsLogin`, and `testAdminRejection`.
 
+### 4.10 Segregation of VIEW vs. DOWNLOAD Permissions (Data Exfiltration Prevention)
+- **Scenario**: A document owner intends to grant a collaborator read-only visibility into a document's metadata and inspection details, but wishes to prevent the recipient from downloading the raw document payload.
+- **Mitigation**:
+  - TrustVault implements granular permission levels (`VIEW`, `DOWNLOAD`, `EDIT`).
+  - Users with `VIEW`-only access are authorized to inspect document records and metadata (`authorizeRead`), but any binary download invocation (`GET /api/documents/{id}/download`) routes through `authorizeDownload`, throwing `AccessForbiddenException` and recording an `ACCESS_DENIED` security audit event.
+  - Frontend controls disable or withhold download actions when `effectivePermission === 'VIEW'`.
+- **Verification**: Verified in `DocumentSecurityAndAuthorizationTest.testViewOnlyPermissionCannotDownloadDocument` and `testDownloadPermissionAllowsDownload`.
+
+### 4.11 Time-Bounded Access & Stale Grant Expiration
+- **Scenario**: An external consultant is granted temporary access for an audit; after the engagement concludes, forgotten permission grants allow persistent access indefinitely.
+- **Mitigation**:
+  - Permissions support optional expiration timestamps (`expires_at` column in `document_permissions`).
+  - `DocumentAuthorizationService` verifies `expires_at > CURRENT_TIMESTAMP` before granting read, edit, or download access.
+  - Expired grants are dynamically filtered out of accessible document queries and immediately trigger `ACCESS_DENIED` audit events upon attempted use.
+- **Verification**: Verified in `DocumentSecurityAndAuthorizationTest.testExpiredPermissionRejectedImmediately`.
+
+### 4.12 External HMAC-SHA256 Signed Checkpoints (Database Superuser Tampering Mitigation)
+- **Scenario**: An adversary or rogue database administrator compromises database superuser credentials (`postgres`), modifies an incriminating audit record, and regenerates valid SHA-256 hashes for all subsequent records to manufacture a synthetic valid chain.
+- **Mitigation**:
+  - TrustVault records out-of-band periodic cryptographic checkpoints (every 25 blocks) persisted to an independent append-only log (`./storage/checkpoints/audit_checkpoints.log`).
+  - Checkpoint lines combine `seq | hash | timestamp` signed with a dedicated HMAC-SHA256 key (`CHECKPOINT_SECRET`) outside the relational database engine.
+  - `AuditService.verifyIntegrity()` verifies both intra-table link continuity and external signed checkpoint hashes, detecting any full-table rewrites or truncation attacks.
+- **Verification**: Verified in `AuditIntegrityAndTamperTest.testConcurrentAuditWritesMaintainHashChainIntegrity` and `AuditVerificationEndpointSecurityTest`.
+
 ---
 
 ## 5. RESIDUAL RISKS
 
-1. **Client-Side Data Retention**: Once a file has been downloaded to a user's local operating system, server-side revocation cannot remotely delete the file from the user's hard drive or prevent them from forwarding it offline.
-2. **Whole-Chain Database Rewrite**: While a hash chain detects alteration of individual blocks, an attacker with superuser database access could rewrite all hashes from an arbitrary point forward if not checked against an external timestamping service or immutable log.
+1. **Client-Side Data Retention**: Once a file has been downloaded to an authorized user's local operating system, server-side revocation cannot remotely delete the file from the user's hard drive or prevent offline copying. (Mitigated for view-only users via `VIEW` permission restriction).
+2. **Key Material Compromise**: If both database credentials and the server host filesystem (where HMAC checkpoint secrets and private storage keys reside) are simultaneously compromised, an adversary could forge checkpoints. (Recommended: HSM or AWS KMS envelope encryption in production).
 
 ---
 

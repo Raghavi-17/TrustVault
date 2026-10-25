@@ -273,4 +273,85 @@ public class RegistrationAndApprovalWorkflowTest {
         assertThat(rejected.getStatus()).isEqualTo(UserStatus.REJECTED);
         assertThat(rejected.isActive()).isFalse();
     }
+
+    @Test
+    @DisplayName("Authorization: Ordinary user receives 403 Forbidden when attempting approval")
+    @WithMockUser(username = "regular_viewer", roles = {"VIEWER"})
+    public void testOrdinaryUserCannotApproveRegistration() throws Exception {
+        User pending = userRepository.save(new User(
+                "pendingtarget1",
+                passwordEncoder.encode("Password123!"),
+                "Pending Target 1",
+                "target1@example.com",
+                Role.VIEWER,
+                UserStatus.PENDING
+        ));
+
+        mockMvc.perform(post("/api/admin/registrations/" + pending.getId() + "/approve")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new ApproveRegistrationRequest(Role.VIEWER))))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.message").value("You do not possess the required permissions or role for this resource"));
+
+        // User status remains PENDING in database
+        User unchanged = userRepository.findById(pending.getId()).orElseThrow();
+        assertThat(unchanged.getStatus()).isEqualTo(UserStatus.PENDING);
+    }
+
+    @Test
+    @DisplayName("Authorization: Ordinary user receives 403 Forbidden when attempting rejection")
+    @WithMockUser(username = "regular_viewer", roles = {"VIEWER"})
+    public void testOrdinaryUserCannotRejectRegistration() throws Exception {
+        User pending = userRepository.save(new User(
+                "pendingtarget2",
+                passwordEncoder.encode("Password123!"),
+                "Pending Target 2",
+                "target2@example.com",
+                Role.VIEWER,
+                UserStatus.PENDING
+        ));
+
+        mockMvc.perform(post("/api/admin/registrations/" + pending.getId() + "/reject")
+                        .with(csrf()))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.message").value("You do not possess the required permissions or role for this resource"));
+
+        User unchanged = userRepository.findById(pending.getId()).orElseThrow();
+        assertThat(unchanged.getStatus()).isEqualTo(UserStatus.PENDING);
+    }
+
+    @Test
+    @DisplayName("Authorization: Unauthenticated request receives 401 Unauthorized")
+    public void testUnauthenticatedCannotApproveRegistration() throws Exception {
+        mockMvc.perform(post("/api/admin/registrations/some-user-id/approve")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new ApproveRegistrationRequest(Role.VIEWER))))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("Security: Admin cannot assign ADMIN role via registration approval")
+    public void testAdminCannotAssignAdminRoleViaApproval() throws Exception {
+        User pending = userRepository.save(new User(
+                "tryadmin",
+                passwordEncoder.encode("Password123!"),
+                "Try Admin",
+                "tryadmin@example.com",
+                Role.VIEWER,
+                UserStatus.PENDING
+        ));
+
+        mockMvc.perform(post("/api/admin/registrations/" + pending.getId() + "/approve")
+                        .with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user("sysadmin").roles("ADMIN"))
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new ApproveRegistrationRequest(Role.ADMIN))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Administrator privileges cannot be granted via registration approval. Administrators must be provisioned via the secure bootstrap configuration."));
+
+        User unchanged = userRepository.findById(pending.getId()).orElseThrow();
+        assertThat(unchanged.getStatus()).isEqualTo(UserStatus.PENDING);
+    }
 }
