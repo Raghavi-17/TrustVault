@@ -1,3 +1,4 @@
+
 server:
   port: ${SERVER_PORT:8080}
   servlet:
@@ -6,8 +7,9 @@ server:
       cookie:
         name: TRUSTVAULT_SESSION
         http-only: true
-        secure: ${TRUSTVAULT_SECURITY_COOKIE_SECURE:false}
-        same-site: ${TRUSTVAULT_SECURITY_COOKIE_SAMESITE:Lax}
+        secure: ${TRUSTVAULT_SECURITY_COOKIE_SECURE:true}
+        same-site: ${TRUSTVAULT_SECURITY_COOKIE_SAMESITE:None}
+
 
 spring:
   application:
